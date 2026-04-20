@@ -43,6 +43,22 @@ function dayFallsInPeriod(dayOfMonth: number, startDate: string, endDate: string
   return false;
 }
 
+/** Given an anchor date, returns the next period's startDate using paycheckDays. */
+function nextStartAfter(anchorDate: Date, paycheckDays: number[]): Date {
+  const anchorDay = anchorDate.getDate();
+  let startYear = anchorDate.getFullYear();
+  let startMonth = anchorDate.getMonth();
+  let startDay = paycheckDays.find((d) => d > anchorDay) ?? null;
+
+  if (startDay === null) {
+    startMonth += 1;
+    if (startMonth > 11) { startMonth = 0; startYear += 1; }
+    startDay = paycheckDays[0];
+  }
+
+  return new Date(startYear, startMonth, startDay);
+}
+
 /**
  * Generate `count` consecutive periods based on active paycheck income days.
  * Each period is populated with:
@@ -72,63 +88,34 @@ export async function generatePeriods(count: number): Promise<IPeriod[]> {
     anchorDate = yesterday;
   }
 
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
   const created: IPeriod[] = [];
 
   for (let i = 0; i < count; i++) {
-    const anchorDay = anchorDate.getDate();
-    const anchorMonth = anchorDate.getMonth();
-    const anchorYear = anchorDate.getFullYear();
+    const startDate = nextStartAfter(anchorDate, paycheckDays);
 
-    let startYear = anchorYear;
-    let startMonth = anchorMonth;
-    let startDay = paycheckDays.find((d) => d > anchorDay) ?? null;
+    // endDate = day before the *next* period's startDate
+    const nextStart = nextStartAfter(startDate, paycheckDays);
+    const endDate = new Date(nextStart);
+    endDate.setDate(endDate.getDate() - 1);
 
-    if (startDay === null) {
-      startMonth = anchorMonth + 1;
-      if (startMonth > 11) {
-        startMonth = 0;
-        startYear = anchorYear + 1;
-      }
-      startDay = paycheckDays[0];
-    }
-
-    const nextPaycheckDay = paycheckDays.find((d) => d > startDay!) ?? null;
-    let endYear = startYear;
-    let endMonth = startMonth;
-    let endDay: number;
-
-    if (nextPaycheckDay !== null) {
-      const dayBefore = new Date(startYear, startMonth, nextPaycheckDay - 1);
-      endYear = dayBefore.getFullYear();
-      endMonth = dayBefore.getMonth();
-      endDay = dayBefore.getDate();
-    } else {
-      const lastDay = new Date(startYear, startMonth + 1, 0);
-      endYear = lastDay.getFullYear();
-      endMonth = lastDay.getMonth();
-      endDay = lastDay.getDate();
-    }
-
-    const fmt = (y: number, m: number, d: number) =>
-      `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-
-    const startDate = fmt(startYear, startMonth, startDay);
-    const endDate = fmt(endYear, endMonth, endDay);
+    const startStr = fmt(startDate);
+    const endStr = fmt(endDate);
 
     const incomes = activeIncomes
-      .filter((inc) => dayFallsInPeriod(inc.dayOfMonth, startDate, endDate))
+      .filter((inc) => dayFallsInPeriod(inc.dayOfMonth, startStr, endStr))
       .map((inc) => ({ income: inc._id.toString(), status: "Pending" as const }));
 
     const expenses = activeExpenses
-      .filter((exp) => dayFallsInPeriod(exp.dayOfMonth, startDate, endDate))
+      .filter((exp) => dayFallsInPeriod(exp.dayOfMonth, startStr, endStr))
       .map((exp) => ({ expense: exp._id.toString(), status: "Unpaid" as const }));
 
-    const periodData: PeriodInput = { startDate, endDate, incomes, expenses };
-
-    const newPeriod = await periodRepository.create(periodData);
+    const newPeriod = await periodRepository.create({ startDate: startStr, endDate: endStr, incomes, expenses });
     created.push(newPeriod);
 
-    anchorDate = new Date(endDate + "T00:00:00");
+    anchorDate = endDate;
   }
 
   return created;
