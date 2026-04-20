@@ -20,6 +20,20 @@ export async function getById(req: Request, res: Response, next: NextFunction): 
   }
 }
 
+export async function generate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const count = parseInt(req.params.count, 10);
+    if (!Number.isInteger(count) || count < 1 || count > 12) {
+      res.status(400).json({ status: 400, message: "count must be an integer between 1 and 12" });
+      return;
+    }
+    const data = await periodService.generatePeriods(count);
+    sendCollection(res, data);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function create(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const data = await periodService.create(req.body);

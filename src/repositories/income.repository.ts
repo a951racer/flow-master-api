@@ -9,6 +9,14 @@ export async function findById(id: string): Promise<IIncome | null> {
   return Income.findById(id);
 }
 
+export async function findActivePaychecks(): Promise<IIncome[]> {
+  return Income.find({ isPaycheck: true, inactive: { $ne: true } });
+}
+
+export async function findActive(): Promise<IIncome[]> {
+  return Income.find({ inactive: { $ne: true } });
+}
+
 export async function create(data: IncomeInput): Promise<IIncome> {
   return Income.create(data);
 }

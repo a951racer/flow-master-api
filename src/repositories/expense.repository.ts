@@ -9,6 +9,10 @@ export async function findById(id: string): Promise<IExpense | null> {
   return Expense.findById(id);
 }
 
+export async function findActive(): Promise<IExpense[]> {
+  return Expense.find({ inactive: { $ne: true } });
+}
+
 export async function create(data: ExpenseInput): Promise<IExpense> {
   return Expense.create(data);
 }

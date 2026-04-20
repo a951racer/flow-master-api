@@ -11,8 +11,6 @@ import paymentSourceRouter from "./routes/payment-source.routes";
 import expenseRouter from "./routes/expense.routes";
 import incomeRouter from "./routes/income.routes";
 import periodRouter from "./routes/period.routes";
-import periodExpenseRouter from "./routes/period-expense.routes";
-import periodIncomeRouter from "./routes/period-income.routes";
 
 const app = express();
 
@@ -33,8 +31,6 @@ app.use("/api/payment-sources", paymentSourceRouter);
 app.use("/api/expenses", expenseRouter);
 app.use("/api/incomes", incomeRouter);
 app.use("/api/periods", periodRouter);
-app.use("/api/period-expenses", periodExpenseRouter);
-app.use("/api/period-incomes", periodIncomeRouter);
 
 // 404 catch-all
 app.use((_req, res) => {

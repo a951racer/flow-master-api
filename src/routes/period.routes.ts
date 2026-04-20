@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   getAll,
   getById,
+  generate,
   create,
   update,
   remove,
@@ -16,6 +17,7 @@ const router = Router();
 router.use(jwtAuthenticator);
 
 router.get("/", getAll);
+router.post("/generate/:count", generate);
 router.get("/:id", validateObjectId("id"), getById);
 router.post("/", validateBody(periodSchema), create);
 router.put("/:id", validateObjectId("id"), validateBody(periodSchema), update);
