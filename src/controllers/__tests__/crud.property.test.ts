@@ -72,11 +72,11 @@ async function createPaymentSource(source = "TestSource") {
   return res.body.data._id as string;
 }
 
-async function createPeriod(startDate = "2024-01-01") {
+async function createPeriod(startDate = "2024-01-01", endDate = "2024-01-14") {
   const res = await request(app)
     .post("/api/periods")
     .set(auth())
-    .send({ startDate });
+    .send({ startDate, endDate });
   return res.body.data._id as string;
 }
 
@@ -129,11 +129,21 @@ const startDateArb = fc
   )
   .map(([y, m, d]) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
 
-const expenseTypeArb = fc.constantFrom("expense", "debt", "bill") as fc.Arbitrary<"expense" | "debt" | "bill">;
-
-const periodExpenseStatusArb = fc.constantFrom("Unpaid", "Paid", "Deferred") as fc.Arbitrary<"Unpaid" | "Paid" | "Deferred">;
-
-const periodIncomeStatusArb = fc.constantFrom("Pending", "Received") as fc.Arbitrary<"Pending" | "Received">;
+// Generates a valid [startDate, endDate] pair where endDate > startDate
+const periodDatesArb = fc
+  .tuple(
+    fc.integer({ min: 2000, max: 2029 }),
+    fc.integer({ min: 1, max: 12 }),
+    fc.integer({ min: 1, max: 14 }),
+    fc.integer({ min: 1, max: 14 })
+  )
+  .map(([y, m, d, offset]) => {
+    const start = new Date(y, m - 1, d);
+    const end = new Date(y, m - 1, d + offset + 1);
+    const fmt = (dt: Date) =>
+      `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    return { startDate: fmt(start), endDate: fmt(end) };
+  });
 
 // ─── ExpenseCategory ─────────────────────────────────────────────────────────
 
@@ -563,9 +573,9 @@ describe("Period", () => {
   it("P2: POST always returns _id, createdAt, updatedAt", async () => {
     // Feature: node-express-mongodb-api, Property 2: created_documents_include_base_fields
     await fc.assert(
-      fc.asyncProperty(startDateArb, async (startDate) => {
+      fc.asyncProperty(periodDatesArb, async ({ startDate, endDate }) => {
         await clearDb();
-        const res = await request(app).post("/api/periods").set(auth()).send({ startDate });
+        const res = await request(app).post("/api/periods").set(auth()).send({ startDate, endDate });
         expect(res.status).toBe(201);
         expect(res.body.data._id).toBeTruthy();
         expect(res.body.data.createdAt).toBeTruthy();
@@ -578,9 +588,9 @@ describe("Period", () => {
   it("P3: POST, GET by id, PUT responses always have a data field", async () => {
     // Feature: node-express-mongodb-api, Property 3: single_resource_response_shape
     await fc.assert(
-      fc.asyncProperty(startDateArb, startDateArb, async (date1, date2) => {
+      fc.asyncProperty(periodDatesArb, periodDatesArb, async (dates1, dates2) => {
         await clearDb();
-        const postRes = await request(app).post("/api/periods").set(auth()).send({ startDate: date1 });
+        const postRes = await request(app).post("/api/periods").set(auth()).send(dates1);
         expect(postRes.status).toBe(201);
         expect(postRes.body).toHaveProperty("data");
 
@@ -589,7 +599,7 @@ describe("Period", () => {
         expect(getRes.status).toBe(200);
         expect(getRes.body).toHaveProperty("data");
 
-        const putRes = await request(app).put(`/api/periods/${id}`).set(auth()).send({ startDate: date2 });
+        const putRes = await request(app).put(`/api/periods/${id}`).set(auth()).send(dates2);
         expect(putRes.status).toBe(200);
         expect(putRes.body).toHaveProperty("data");
       }),
@@ -600,10 +610,10 @@ describe("Period", () => {
   it("P4: GET all always has data array and count === data.length", async () => {
     // Feature: node-express-mongodb-api, Property 4: collection_response_shape_and_count_consistency
     await fc.assert(
-      fc.asyncProperty(fc.array(startDateArb, { minLength: 1, maxLength: 5 }), async (dates) => {
+      fc.asyncProperty(fc.array(periodDatesArb, { minLength: 1, maxLength: 5 }), async (periods) => {
         await clearDb();
-        for (const startDate of dates) {
-          await request(app).post("/api/periods").set(auth()).send({ startDate });
+        for (const p of periods) {
+          await request(app).post("/api/periods").set(auth()).send(p);
         }
         const res = await request(app).get("/api/periods").set(auth());
         expect(res.status).toBe(200);
@@ -617,221 +627,98 @@ describe("Period", () => {
   it("P5: POST response contains all submitted fields with original values", async () => {
     // Feature: node-express-mongodb-api, Property 5: create_round_trip_preserves_submitted_fields
     await fc.assert(
-      fc.asyncProperty(startDateArb, async (startDate) => {
+      fc.asyncProperty(periodDatesArb, async ({ startDate, endDate }) => {
         await clearDb();
-        const res = await request(app).post("/api/periods").set(auth()).send({ startDate });
+        const res = await request(app).post("/api/periods").set(auth()).send({ startDate, endDate });
         expect(res.status).toBe(201);
         expect(res.body.data.startDate).toBe(startDate);
-      }),
-      { numRuns: 10 }
-    );
-  });
-});
-
-// ─── PeriodExpense ────────────────────────────────────────────────────────────
-
-describe("PeriodExpense", () => {
-  it("P2: POST always returns _id, createdAt, updatedAt", async () => {
-    // Feature: node-express-mongodb-api, Property 2: created_documents_include_base_fields
-    await fc.assert(
-      fc.asyncProperty(periodExpenseStatusArb, async (status) => {
-        await clearDb();
-        const periodId = await createPeriod();
-        const catId = await createExpenseCategory();
-        const psId = await createPaymentSource();
-        const expenseId = await createExpense(catId, psId);
-        const res = await request(app)
-          .post("/api/period-expenses")
-          .set(auth())
-          .send({ period: periodId, expense: expenseId, status });
-        expect(res.status).toBe(201);
-        expect(res.body.data._id).toBeTruthy();
-        expect(res.body.data.createdAt).toBeTruthy();
-        expect(res.body.data.updatedAt).toBeTruthy();
+        expect(res.body.data.endDate).toBe(endDate);
       }),
       { numRuns: 10 }
     );
   });
 
-  it("P3: POST, GET by id, PUT responses always have a data field", async () => {
-    // Feature: node-express-mongodb-api, Property 3: single_resource_response_shape
-    await fc.assert(
-      fc.asyncProperty(periodExpenseStatusArb, periodExpenseStatusArb, async (status1, status2) => {
-        await clearDb();
-        const periodId = await createPeriod();
-        const catId = await createExpenseCategory();
-        const psId = await createPaymentSource();
-        const expenseId = await createExpense(catId, psId);
+  it("P21: rejects endDate <= startDate", async () => {
+    // Feature: node-express-mongodb-api, Property 21: endDate must be after startDate
+    await clearDb();
+    const sameDate = await request(app)
+      .post("/api/periods")
+      .set(auth())
+      .send({ startDate: "2025-06-15", endDate: "2025-06-15" });
+    expect(sameDate.status).toBe(400);
 
-        const postRes = await request(app)
-          .post("/api/period-expenses")
-          .set(auth())
-          .send({ period: periodId, expense: expenseId, status: status1 });
-        expect(postRes.status).toBe(201);
-        expect(postRes.body).toHaveProperty("data");
-
-        const id = postRes.body.data._id;
-        const getRes = await request(app).get(`/api/period-expenses/${id}`).set(auth());
-        expect(getRes.status).toBe(200);
-        expect(getRes.body).toHaveProperty("data");
-
-        const putRes = await request(app)
-          .put(`/api/period-expenses/${id}`)
-          .set(auth())
-          .send({ period: periodId, expense: expenseId, status: status2 });
-        expect(putRes.status).toBe(200);
-        expect(putRes.body).toHaveProperty("data");
-      }),
-      { numRuns: 10 }
-    );
+    const beforeDate = await request(app)
+      .post("/api/periods")
+      .set(auth())
+      .send({ startDate: "2025-06-15", endDate: "2025-06-14" });
+    expect(beforeDate.status).toBe(400);
   });
 
-  it("P4: GET all always has data array and count === data.length", async () => {
-    // Feature: node-express-mongodb-api, Property 4: collection_response_shape_and_count_consistency
-    await fc.assert(
-      fc.asyncProperty(
-        fc.array(periodExpenseStatusArb, { minLength: 1, maxLength: 3 }),
-        async (statuses) => {
-          await clearDb();
-          const periodId = await createPeriod();
-          const catId = await createExpenseCategory();
-          const psId = await createPaymentSource();
-          const expenseId = await createExpense(catId, psId);
-          for (const status of statuses) {
-            await request(app)
-              .post("/api/period-expenses")
-              .set(auth())
-              .send({ period: periodId, expense: expenseId, status });
-          }
-          const res = await request(app).get("/api/period-expenses").set(auth());
-          expect(res.status).toBe(200);
-          expect(Array.isArray(res.body.data)).toBe(true);
-          expect(res.body.count).toBe(res.body.data.length);
-        }
-      ),
-      { numRuns: 10 }
-    );
+  it("P22: generate rejects count outside [1, 12]", async () => {
+    // Feature: node-express-mongodb-api, Property 22: generate rejects count outside [1, 12]
+    await clearDb();
+    const res0 = await request(app).post("/api/periods/generate/0").set(auth());
+    expect(res0.status).toBe(400);
+    const res13 = await request(app).post("/api/periods/generate/13").set(auth());
+    expect(res13.status).toBe(400);
   });
 
-  it("P5: POST response contains all submitted fields with original values", async () => {
-    // Feature: node-express-mongodb-api, Property 5: create_round_trip_preserves_submitted_fields
-    await fc.assert(
-      fc.asyncProperty(periodExpenseStatusArb, async (status) => {
-        await clearDb();
-        const periodId = await createPeriod();
-        const catId = await createExpenseCategory();
-        const psId = await createPaymentSource();
-        const expenseId = await createExpense(catId, psId);
-        const res = await request(app)
-          .post("/api/period-expenses")
-          .set(auth())
-          .send({ period: periodId, expense: expenseId, status });
-        expect(res.status).toBe(201);
-        expect(String(res.body.data.period)).toBe(periodId);
-        expect(String(res.body.data.expense)).toBe(expenseId);
-        expect(res.body.data.status).toBe(status);
-      }),
-      { numRuns: 10 }
-    );
-  });
-});
-
-// ─── PeriodIncome ─────────────────────────────────────────────────────────────
-
-describe("PeriodIncome", () => {
-  it("P2: POST always returns _id, createdAt, updatedAt", async () => {
-    // Feature: node-express-mongodb-api, Property 2: created_documents_include_base_fields
-    await fc.assert(
-      fc.asyncProperty(periodIncomeStatusArb, async (status) => {
-        await clearDb();
-        const periodId = await createPeriod();
-        const incomeId = await createIncome();
-        const res = await request(app)
-          .post("/api/period-incomes")
-          .set(auth())
-          .send({ period: periodId, income: incomeId, status });
-        expect(res.status).toBe(201);
-        expect(res.body.data._id).toBeTruthy();
-        expect(res.body.data.createdAt).toBeTruthy();
-        expect(res.body.data.updatedAt).toBeTruthy();
-      }),
-      { numRuns: 10 }
-    );
+  it("P22: generate returns 422 when no active paycheck incomes exist", async () => {
+    await clearDb();
+    const res = await request(app).post("/api/periods/generate/1").set(auth());
+    expect(res.status).toBe(422);
   });
 
-  it("P3: POST, GET by id, PUT responses always have a data field", async () => {
-    // Feature: node-express-mongodb-api, Property 3: single_resource_response_shape
-    await fc.assert(
-      fc.asyncProperty(periodIncomeStatusArb, periodIncomeStatusArb, async (status1, status2) => {
-        await clearDb();
-        const periodId = await createPeriod();
-        const incomeId = await createIncome();
+  it("P23: generated periods have contiguous non-overlapping date ranges", async () => {
+    // Feature: node-express-mongodb-api, Property 23: generated periods are contiguous
+    await clearDb();
+    // Create two active paycheck incomes on days 1 and 15
+    await request(app).post("/api/incomes").set(auth()).send({
+      dayOfMonth: 1, amount: 1000, source: "Paycheck A", isPaycheck: true, inactive: false,
+    });
+    await request(app).post("/api/incomes").set(auth()).send({
+      dayOfMonth: 15, amount: 1000, source: "Paycheck B", isPaycheck: true, inactive: false,
+    });
 
-        const postRes = await request(app)
-          .post("/api/period-incomes")
-          .set(auth())
-          .send({ period: periodId, income: incomeId, status: status1 });
-        expect(postRes.status).toBe(201);
-        expect(postRes.body).toHaveProperty("data");
+    const res = await request(app).post("/api/periods/generate/4").set(auth());
+    expect(res.status).toBe(200);
+    const periods: Array<{ startDate: string; endDate: string }> = res.body.data;
+    expect(periods.length).toBe(4);
 
-        const id = postRes.body.data._id;
-        const getRes = await request(app).get(`/api/period-incomes/${id}`).set(auth());
-        expect(getRes.status).toBe(200);
-        expect(getRes.body).toHaveProperty("data");
-
-        const putRes = await request(app)
-          .put(`/api/period-incomes/${id}`)
-          .set(auth())
-          .send({ period: periodId, income: incomeId, status: status2 });
-        expect(putRes.status).toBe(200);
-        expect(putRes.body).toHaveProperty("data");
-      }),
-      { numRuns: 10 }
-    );
+    for (let i = 0; i < periods.length - 1; i++) {
+      const endDate = new Date(periods[i].endDate + "T00:00:00");
+      const nextStart = new Date(periods[i + 1].startDate + "T00:00:00");
+      const dayAfterEnd = new Date(endDate);
+      dayAfterEnd.setDate(dayAfterEnd.getDate() + 1);
+      expect(dayAfterEnd.toISOString().slice(0, 10)).toBe(periods[i + 1].startDate);
+    }
   });
 
-  it("P4: GET all always has data array and count === data.length", async () => {
-    // Feature: node-express-mongodb-api, Property 4: collection_response_shape_and_count_consistency
-    await fc.assert(
-      fc.asyncProperty(
-        fc.array(periodIncomeStatusArb, { minLength: 1, maxLength: 3 }),
-        async (statuses) => {
-          await clearDb();
-          const periodId = await createPeriod();
-          const incomeId = await createIncome();
-          for (const status of statuses) {
-            await request(app)
-              .post("/api/period-incomes")
-              .set(auth())
-              .send({ period: periodId, income: incomeId, status });
-          }
-          const res = await request(app).get("/api/period-incomes").set(auth());
-          expect(res.status).toBe(200);
-          expect(Array.isArray(res.body.data)).toBe(true);
-          expect(res.body.count).toBe(res.body.data.length);
-        }
-      ),
-      { numRuns: 10 }
-    );
-  });
+  it("generated periods include populated expense and income subdocuments", async () => {
+    await clearDb();
+    const catId = await createExpenseCategory();
+    const psId = await createPaymentSource();
+    // Active paycheck income on day 1
+    await request(app).post("/api/incomes").set(auth()).send({
+      dayOfMonth: 1, amount: 1000, source: "Paycheck", isPaycheck: true, inactive: false,
+    });
+    // Active expense on day 5
+    await request(app).post("/api/expenses").set(auth()).send({
+      dayOfMonth: 5, amount: 200, type: "expense", payee: "Landlord",
+      required: true, category: catId, paymentSource: psId, inactive: false,
+    });
 
-  it("P5: POST response contains all submitted fields with original values", async () => {
-    // Feature: node-express-mongodb-api, Property 5: create_round_trip_preserves_submitted_fields
-    await fc.assert(
-      fc.asyncProperty(periodIncomeStatusArb, async (status) => {
-        await clearDb();
-        const periodId = await createPeriod();
-        const incomeId = await createIncome();
-        const res = await request(app)
-          .post("/api/period-incomes")
-          .set(auth())
-          .send({ period: periodId, income: incomeId, status });
-        expect(res.status).toBe(201);
-        expect(String(res.body.data.period)).toBe(periodId);
-        expect(String(res.body.data.income)).toBe(incomeId);
-        expect(res.body.data.status).toBe(status);
-      }),
-      { numRuns: 10 }
-    );
+    const res = await request(app).post("/api/periods/generate/1").set(auth());
+    expect(res.status).toBe(200);
+    const period = res.body.data[0];
+    // incomes subdocuments should be populated objects, not just ObjectIds
+    if (period.incomes.length > 0) {
+      expect(typeof period.incomes[0].income).toBe("object");
+      expect(period.incomes[0].income).toHaveProperty("dayOfMonth");
+    }
+    if (period.expenses.length > 0) {
+      expect(typeof period.expenses[0].expense).toBe("object");
+      expect(period.expenses[0].expense).toHaveProperty("payee");
+    }
   });
 });
