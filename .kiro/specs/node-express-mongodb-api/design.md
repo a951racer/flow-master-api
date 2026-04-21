@@ -70,6 +70,7 @@ src/
     expense-category.model.ts
     payment-source.model.ts
     expense.model.ts
+    expense-audit.model.ts  # audit trail entries for Expense changes
     income.model.ts
     period.model.ts     # embeds PeriodExpenseEntry and PeriodIncomeEntry subdocuments
     income-audit.model.ts  # audit trail entries for Income changes
@@ -84,6 +85,7 @@ src/
     expense-category.repository.ts
     payment-source.repository.ts
     expense.repository.ts
+    expense-audit.repository.ts
     income.repository.ts
     income-audit.repository.ts
     period.repository.ts
@@ -93,6 +95,7 @@ src/
     expense-category.service.ts
     payment-source.service.ts
     expense.service.ts
+    expense-audit.service.ts  # audit logic lives in expense.service.ts directly
     income.service.ts
     income-audit.service.ts  # audit logic lives in income.service.ts directly
     period.service.ts
@@ -101,6 +104,7 @@ src/
     expense-category.controller.ts
     payment-source.controller.ts
     expense.controller.ts
+    expense-audit.controller.ts
     income.controller.ts
     income-audit.controller.ts
     period.controller.ts
@@ -113,7 +117,7 @@ src/
     auth.routes.ts
     expense-category.routes.ts
     payment-source.routes.ts
-    expense.routes.ts
+    expense.routes.ts   # includes GET /:id/audit sub-route
     income.routes.ts    # includes GET /:id/audit sub-route
     period.routes.ts
   utils/
@@ -345,6 +349,24 @@ If no active paycheck incomes exist, throws `AppError(422, "No active paycheck i
 | status         | String   | required, enum: "Pending" \| "Received"  |
 | overrideAmount | Number   | optional, positive                       |
 
+### ExpenseAudit
+
+| Field      | Type                    | Constraints                                          |
+|------------|-------------------------|------------------------------------------------------|
+| _id        | ObjectId                | auto, MongoDB                                        |
+| expenseId  | ObjectId                | required, ref: Expense                               |
+| action     | String                  | required, enum: "created" \| "updated" \| "deleted" |
+| changedAt  | Date                    | required, UTC timestamp of the operation             |
+| changes    | IExpenseAuditChange[]   | array of field-level change records                  |
+
+Each `IExpenseAuditChange` entry:
+
+| Field         | Type    | Description                                |
+|---------------|---------|--------------------------------------------|
+| field         | String  | Name of the changed Expense field          |
+| previousValue | Mixed   | Value before the change (`null` on create) |
+| newValue      | Mixed   | Value after the change (`null` on delete)  |
+
 ### IncomeAudit
 
 | Field      | Type                  | Constraints                                          |
@@ -374,6 +396,7 @@ Each `IIncomeAuditChange` entry:
 | Income          | incomes            |
 | Period          | periods            |
 | IncomeAudit     | income-audits      |
+| ExpenseAudit    | expense-audits     |
 
 ### Zod Validation Rules Summary
 
