@@ -348,6 +348,20 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 
 ---
 
+### Requirement 27: Cascade Expense Deactivation to Active Periods
+
+**User Story:** As a developer, I want deactivating an Expense to automatically remove it from all active Periods, so that future period views don't include expenses that are no longer active.
+
+#### Acceptance Criteria
+
+1. WHEN an Expense Document is updated and `inactive` changes from `false` to `true`, THE API SHALL remove that expense's subdocument entry from the `expenses` array of all active Period Documents.
+2. AN active Period is defined as a Period whose `endDate` is greater than or equal to today's date (UTC).
+3. THE cascade SHALL occur atomically after the Expense update is persisted, using a single `updateMany` operation on the periods collection.
+4. Periods whose `endDate` is before today SHALL NOT be modified by the cascade.
+5. IF the expense was already `inactive: true` before the update, no cascade SHALL occur.
+
+---
+
 ### Requirement 26: Expense Audit Trail
 
 **User Story:** As a developer, I want every create, update, and delete operation on Expense documents to be recorded in an audit trail, so that I can track the full history of changes including what changed, when, and what the previous and new values were.

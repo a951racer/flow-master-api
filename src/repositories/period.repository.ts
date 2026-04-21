@@ -42,3 +42,15 @@ export async function remove(id: string): Promise<boolean> {
   const result = await Period.findByIdAndDelete(id);
   return result !== null;
 }
+
+/**
+ * Remove a specific expense from the expenses array of all active periods
+ * (periods whose endDate >= today).
+ */
+export async function removeExpenseFromActivePeriods(expenseId: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  await Period.updateMany(
+    { endDate: { $gte: today } },
+    { $pull: { expenses: { expense: expenseId } } }
+  );
+}
