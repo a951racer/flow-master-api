@@ -349,6 +349,24 @@ If no active paycheck incomes exist, throws `AppError(422, "No active paycheck i
 | status         | String   | required, enum: "Pending" \| "Received"  |
 | overrideAmount | Number   | optional, positive                       |
 
+### ExpenseAudit
+
+| Field      | Type                    | Constraints                                          |
+|------------|-------------------------|------------------------------------------------------|
+| _id        | ObjectId                | auto, MongoDB                                        |
+| expenseId  | ObjectId                | required, ref: Expense                               |
+| action     | String                  | required, enum: "created" \| "updated" \| "deleted" |
+| changedAt  | Date                    | required, UTC timestamp of the operation             |
+| changes    | IExpenseAuditChange[]   | array of field-level change records                  |
+
+Each `IExpenseAuditChange` entry:
+
+| Field         | Type    | Description                                |
+|---------------|---------|--------------------------------------------|
+| field         | String  | Name of the changed Expense field          |
+| previousValue | Mixed   | Value before the change (`null` on create) |
+| newValue      | Mixed   | Value after the change (`null` on delete)  |
+
 ### IncomeAudit
 
 | Field      | Type                  | Constraints                                          |
