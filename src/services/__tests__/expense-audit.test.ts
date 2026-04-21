@@ -135,6 +135,27 @@ describe("Expense Audit Trail", () => {
     expect(res.status).toBe(400);
   });
 
+  it("records category and paymentSource as string ObjectIds in the deleted audit entry", async () => {
+    const createRes = await request(app).post("/api/expenses").set(auth()).send(baseExpense());
+    const id = createRes.body.data._id;
+
+    await request(app).delete(`/api/expenses/${id}`).set(auth());
+
+    const auditRes = await request(app).get(`/api/expenses/${id}/audit`).set(auth());
+    const deleteEntry = auditRes.body.data[1];
+    expect(deleteEntry.action).toBe("deleted");
+
+    const catChange = deleteEntry.changes.find((c: { field: string }) => c.field === "category");
+    expect(catChange).toBeDefined();
+    expect(typeof catChange.previousValue).toBe("string");
+    expect(catChange.newValue).toBeNull();
+
+    const psChange = deleteEntry.changes.find((c: { field: string }) => c.field === "paymentSource");
+    expect(psChange).toBeDefined();
+    expect(typeof psChange.previousValue).toBe("string");
+    expect(psChange.newValue).toBeNull();
+  });
+
   it("records category and paymentSource changes as string ObjectIds", async () => {
     const createRes = await request(app).post("/api/expenses").set(auth()).send(baseExpense());
     const id = createRes.body.data._id;
