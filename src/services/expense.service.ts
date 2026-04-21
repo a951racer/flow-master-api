@@ -18,14 +18,24 @@ const AUDITED_FIELDS: (keyof ExpenseInput)[] = [
   "inactiveDate",
 ];
 
+function normalizeField(value: unknown): unknown {
+  if (value == null) return null;
+  // Populated subdocument or ObjectId — normalize to string id
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    if (obj._id != null) return String(obj._id);
+    return String(value);
+  }
+  return value;
+}
+
 function diffChanges(before: IExpense, after: ExpenseInput): IExpenseAuditChange[] {
   return AUDITED_FIELDS.reduce<IExpenseAuditChange[]>((acc, field) => {
-    const prev = (before as unknown as Record<string, unknown>)[field];
-    // ObjectId fields need string comparison
-    const prevNorm = prev != null && typeof prev === "object" ? String(prev) : prev;
-    const next = (after as unknown as Record<string, unknown>)[field];
-    if (prevNorm !== next) {
-      acc.push({ field, previousValue: prevNorm ?? null, newValue: next ?? null });
+    const rawPrev = (before as unknown as Record<string, unknown>)[field];
+    const prev = normalizeField(rawPrev);
+    const next = (after as unknown as Record<string, unknown>)[field] ?? null;
+    if (prev !== next) {
+      acc.push({ field, previousValue: prev, newValue: next });
     }
     return acc;
   }, []);
@@ -71,8 +81,7 @@ export async function remove(id: string): Promise<void> {
     .filter((f) => (before as unknown as Record<string, unknown>)[f] !== undefined)
     .map((f) => {
       const val = (before as unknown as Record<string, unknown>)[f];
-      const prevNorm = val != null && typeof val === "object" ? String(val) : val;
-      return { field: f, previousValue: prevNorm ?? null, newValue: null };
+      return { field: f, previousValue: normalizeField(val), newValue: null };
     });
   await expenseAuditRepository.create(id, "deleted", changes);
 }
