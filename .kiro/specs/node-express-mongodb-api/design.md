@@ -72,6 +72,7 @@ src/
     expense.model.ts
     income.model.ts
     period.model.ts     # embeds PeriodExpenseEntry and PeriodIncomeEntry subdocuments
+    income-audit.model.ts  # audit trail entries for Income changes
   schemas/              # Zod schemas + inferred TS types
     user.schema.ts
     expense-category.schema.ts
@@ -84,6 +85,7 @@ src/
     payment-source.repository.ts
     expense.repository.ts
     income.repository.ts
+    income-audit.repository.ts
     period.repository.ts
     user.repository.ts
   services/
@@ -92,6 +94,7 @@ src/
     payment-source.service.ts
     expense.service.ts
     income.service.ts
+    income-audit.service.ts  # audit logic lives in income.service.ts directly
     period.service.ts
   controllers/
     auth.controller.ts
@@ -99,6 +102,7 @@ src/
     payment-source.controller.ts
     expense.controller.ts
     income.controller.ts
+    income-audit.controller.ts
     period.controller.ts
   middleware/
     jwt-authenticator.ts
@@ -110,7 +114,7 @@ src/
     expense-category.routes.ts
     payment-source.routes.ts
     expense.routes.ts
-    income.routes.ts
+    income.routes.ts    # includes GET /:id/audit sub-route
     period.routes.ts
   utils/
     response.ts         # helpers: sendData, sendCollection, sendError
@@ -341,6 +345,24 @@ If no active paycheck incomes exist, throws `AppError(422, "No active paycheck i
 | status         | String   | required, enum: "Pending" \| "Received"  |
 | overrideAmount | Number   | optional, positive                       |
 
+### IncomeAudit
+
+| Field      | Type                  | Constraints                                          |
+|------------|-----------------------|------------------------------------------------------|
+| _id        | ObjectId              | auto, MongoDB                                        |
+| incomeId   | ObjectId              | required, ref: Income                                |
+| action     | String                | required, enum: "created" \| "updated" \| "deleted" |
+| changedAt  | Date                  | required, UTC timestamp of the operation             |
+| changes    | IIncomeAuditChange[]  | array of field-level change records                  |
+
+Each `IIncomeAuditChange` entry:
+
+| Field         | Type    | Description                              |
+|---------------|---------|------------------------------------------|
+| field         | String  | Name of the changed Income field         |
+| previousValue | Mixed   | Value before the change (`null` on create) |
+| newValue      | Mixed   | Value after the change (`null` on delete)  |
+
 ### MongoDB Collection Names
 
 | Model           | Collection         |
@@ -351,6 +373,7 @@ If no active paycheck incomes exist, throws `AppError(422, "No active paycheck i
 | Expense         | expenses           |
 | Income          | incomes            |
 | Period          | periods            |
+| IncomeAudit     | income-audits      |
 
 ### Zod Validation Rules Summary
 
