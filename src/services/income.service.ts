@@ -16,8 +16,8 @@ const AUDITED_FIELDS: (keyof IncomeInput)[] = [
 
 function diffChanges(before: IIncome, after: IncomeInput): IIncomeAuditChange[] {
   return AUDITED_FIELDS.reduce<IIncomeAuditChange[]>((acc, field) => {
-    const prev = (before as Record<string, unknown>)[field];
-    const next = (after as Record<string, unknown>)[field];
+    const prev = (before as unknown as Record<string, unknown>)[field];
+    const next = (after as unknown as Record<string, unknown>)[field];
     if (prev !== next) {
       acc.push({ field, previousValue: prev ?? null, newValue: next ?? null });
     }
@@ -62,7 +62,7 @@ export async function remove(id: string): Promise<void> {
   const deleted = await incomeRepository.remove(id);
   if (!deleted) throw new AppError(404, "Income not found");
   const changes: IIncomeAuditChange[] = AUDITED_FIELDS
-    .filter((f) => (before as Record<string, unknown>)[f] !== undefined)
-    .map((f) => ({ field: f, previousValue: (before as Record<string, unknown>)[f] ?? null, newValue: null }));
+    .filter((f) => (before as unknown as Record<string, unknown>)[f] !== undefined)
+    .map((f) => ({ field: f, previousValue: (before as unknown as Record<string, unknown>)[f] ?? null, newValue: null }));
   await incomeAuditRepository.create(id, "deleted", changes);
 }
