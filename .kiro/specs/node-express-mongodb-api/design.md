@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the technical design for a RESTful API built with Node.js, Express, TypeScript, and MongoDB (via Mongoose). The API manages eight primary resources — Users, ExpenseCategories, PaymentSources, Expenses, Incomes, Periods, PeriodExpenses, and PeriodIncomes — and exposes standard CRUD endpoints protected by JWT authentication.
+This document describes the technical design for a RESTful API built with Node.js, Express, TypeScript, and MongoDB (via Mongoose). The API manages six primary resources — Users, ExpenseCategories, PaymentSources, Expenses, Incomes, and Periods — and exposes standard CRUD endpoints protected by JWT authentication. Periods embed their associated expense and income entries as subdocuments rather than storing them in separate collections.
 
 The system follows a layered architecture: Router → Controller → Service → Repository → Mongoose Model. Input validation is handled by Zod middleware before requests reach controllers. A centralized error handler normalizes all error responses.
 
@@ -71,26 +71,20 @@ src/
     payment-source.model.ts
     expense.model.ts
     income.model.ts
-    period.model.ts
-    period-expense.model.ts
-    period-income.model.ts
+    period.model.ts     # embeds PeriodExpenseEntry and PeriodIncomeEntry subdocuments
   schemas/              # Zod schemas + inferred TS types
     user.schema.ts
     expense-category.schema.ts
     payment-source.schema.ts
     expense.schema.ts
     income.schema.ts
-    period.schema.ts
-    period-expense.schema.ts
-    period-income.schema.ts
+    period.schema.ts    # includes periodExpenseEntrySchema and periodIncomeEntrySchema
   repositories/
     expense-category.repository.ts
     payment-source.repository.ts
     expense.repository.ts
     income.repository.ts
     period.repository.ts
-    period-expense.repository.ts
-    period-income.repository.ts
     user.repository.ts
   services/
     auth.service.ts
@@ -99,8 +93,6 @@ src/
     expense.service.ts
     income.service.ts
     period.service.ts
-    period-expense.service.ts
-    period-income.service.ts
   controllers/
     auth.controller.ts
     expense-category.controller.ts
@@ -108,8 +100,6 @@ src/
     expense.controller.ts
     income.controller.ts
     period.controller.ts
-    period-expense.controller.ts
-    period-income.controller.ts
   middleware/
     jwt-authenticator.ts
     validate-body.ts
@@ -122,8 +112,6 @@ src/
     expense.routes.ts
     income.routes.ts
     period.routes.ts
-    period-expense.routes.ts
-    period-income.routes.ts
   utils/
     response.ts         # helpers: sendData, sendCollection, sendError
     token.service.ts
@@ -218,9 +206,30 @@ update(id: string, data: UpdateDto): Promise<T | null>
 remove(id: string): Promise<boolean>
 ```
 
+The Period repository additionally exposes:
+```typescript
+findLatest(): Promise<IPeriod | null>   // most recent period by endDate
+```
+
+All Period repository methods automatically populate `expenses.expense` and `incomes.income` subdocuments with their full referenced documents.
+
 The service layer calls the repository and throws `AppError(404, ...)` when `findById` / `update` / `remove` returns null.
 
-### Auth Flow
+### Period Generation (`POST /api/periods/generate/:count`)
+
+The `count` route parameter must be an integer in [1, 12]. The service:
+
+1. Fetches all active paycheck incomes (`isPaycheck: true`, `inactive != true`) and extracts their sorted `dayOfMonth` values.
+2. Finds the latest existing period by `endDate` (anchor). If none exists, uses yesterday.
+3. For each of the `count` periods:
+   - Computes `startDate` as the smallest paycheck day strictly greater than the anchor day in the same month; if none, rolls to the next month and uses the smallest paycheck day.
+   - Computes `endDate` as the day before the *next* period's `startDate` (applying the same algorithm one step ahead).
+   - Populates `expenses` with all active expenses whose `dayOfMonth` falls within the period, each with `status: "Unpaid"`.
+   - Populates `incomes` with all active incomes whose `dayOfMonth` falls within the period, each with `status: "Pending"`.
+   - A `dayOfMonth` value is considered to fall within a period if, in any calendar month that overlaps the period, the clamped day (min of `dayOfMonth` and last day of that month) falls on or between `startDate` and `endDate`.
+4. Returns the created periods as a collection response.
+
+If no active paycheck incomes exist, throws `AppError(422, "No active paycheck incomes found to determine period dates")`.
 
 **Register** (`POST /api/auth/register`):
 1. Validate body with `registerSchema`
@@ -304,49 +313,42 @@ The service layer calls the repository and throws `AppError(404, ...)` when `fin
 
 ### Period
 
-| Field     | Type     | Constraints                          |
-|-----------|----------|--------------------------------------|
-| _id       | ObjectId | auto, MongoDB                        |
-| startDate | String   | required, ISO 8601 (YYYY-MM-DD)      |
-| createdAt | Date     | auto, Mongoose timestamps            |
-| updatedAt | Date     | auto, Mongoose timestamps            |
+| Field     | Type                    | Constraints                                                        |
+|-----------|-------------------------|--------------------------------------------------------------------|
+| _id       | ObjectId                | auto, MongoDB                                                      |
+| startDate | String                  | required, ISO 8601 (YYYY-MM-DD)                                    |
+| endDate   | String                  | required, ISO 8601 (YYYY-MM-DD), must be after startDate           |
+| expenses  | PeriodExpenseEntry[]    | embedded subdocuments, default []                                  |
+| incomes   | PeriodIncomeEntry[]     | embedded subdocuments, default []                                  |
+| createdAt | Date                    | auto, Mongoose timestamps                                          |
+| updatedAt | Date                    | auto, Mongoose timestamps                                          |
 
-### PeriodExpense
+### PeriodExpenseEntry (embedded in Period)
 
 | Field          | Type     | Constraints                                        |
 |----------------|----------|----------------------------------------------------|
-| _id            | ObjectId | auto, MongoDB                                      |
-| period         | ObjectId | required, ref: Period                              |
 | expense        | ObjectId | required, ref: Expense                             |
-| status         | String   | required, enum: "Unpaid" | "Paid" | "Deferred"     |
+| status         | String   | required, enum: "Unpaid" \| "Paid" \| "Deferred"  |
 | overrideAmount | Number   | optional, positive                                 |
-| createdAt      | Date     | auto, Mongoose timestamps                          |
-| updatedAt      | Date     | auto, Mongoose timestamps                          |
 
-### PeriodIncome
+### PeriodIncomeEntry (embedded in Period)
 
-| Field          | Type     | Constraints                                    |
-|----------------|----------|------------------------------------------------|
-| _id            | ObjectId | auto, MongoDB                                  |
-| period         | ObjectId | required, ref: Period                          |
-| income         | ObjectId | required, ref: Income                          |
-| status         | String   | required, enum: "Pending" | "Received"         |
-| overrideAmount | Number   | optional, positive                             |
-| createdAt      | Date     | auto, Mongoose timestamps                      |
-| updatedAt      | Date     | auto, Mongoose timestamps                      |
+| Field          | Type     | Constraints                              |
+|----------------|----------|------------------------------------------|
+| income         | ObjectId | required, ref: Income                    |
+| status         | String   | required, enum: "Pending" \| "Received"  |
+| overrideAmount | Number   | optional, positive                       |
 
 ### MongoDB Collection Names
 
-| Model          | Collection        |
-|----------------|-------------------|
-| User           | users             |
-| ExpenseCategory| expense-categories|
-| PaymentSource  | payment-sources   |
-| Expense        | expenses          |
-| Income         | incomes           |
-| Period         | periods           |
-| PeriodExpense  | period-expenses   |
-| PeriodIncome   | period-incomes    |
+| Model           | Collection         |
+|-----------------|--------------------|
+| User            | users              |
+| ExpenseCategory | expense-categories |
+| PaymentSource   | payment-sources    |
+| Expense         | expenses           |
+| Income          | incomes            |
+| Period          | periods            |
 
 ### Zod Validation Rules Summary
 
@@ -369,6 +371,29 @@ z.object({
   (data) => !data.inactiveDate || data.inactive === true,
   { message: "inactiveDate can only be set when inactive is true" }
 )
+```
+
+Period `endDate` after `startDate` validation:
+```typescript
+periodSchema.refine(
+  (data) => data.endDate > data.startDate,
+  { message: "endDate must be after startDate", path: ["endDate"] }
+)
+```
+
+Period subdocument schemas:
+```typescript
+const periodExpenseEntrySchema = z.object({
+  expense: objectIdSchema,
+  status: z.enum(["Unpaid", "Paid", "Deferred"]),
+  overrideAmount: z.number().positive().optional(),
+});
+
+const periodIncomeEntrySchema = z.object({
+  income: objectIdSchema,
+  status: z.enum(["Pending", "Received"]),
+  overrideAmount: z.number().positive().optional(),
+});
 ```
 
 ---
@@ -443,9 +468,9 @@ z.object({
 
 ### Property 9: amount and overrideAmount must be positive
 
-*For any* Expense, Income, PeriodExpense, or PeriodIncome create/update payload, if `amount` or `overrideAmount` is present and is not a positive number (i.e., ≤ 0), the Zod schema SHALL reject the payload with a `400` error.
+*For any* Expense or Income create/update payload, if `amount` is present and is not a positive number (i.e., ≤ 0), the Zod schema SHALL reject the payload with a `400` error. For any Period create/update payload, if `overrideAmount` is present in a subdocument entry and is not a positive number, the Zod schema SHALL reject the payload with a `400` error.
 
-**Validates: Requirements 4.4, 15.4, 19.2, 21.2**
+**Validates: Requirements 4.4, 15.4, 17.2**
 
 ---
 
@@ -534,6 +559,30 @@ z.object({
 *For any* Period create/update payload where `startDate` is not a valid calendar date in `YYYY-MM-DD` format, the Zod schema SHALL reject the payload with a `400` error.
 
 **Validates: Requirements 17.3**
+
+---
+
+### Property 21: endDate must be after startDate
+
+*For any* Period create/update payload where `endDate` is not strictly after `startDate`, the Zod schema SHALL reject the payload with a `400` error.
+
+**Validates: Requirements 17.2**
+
+---
+
+### Property 22: generate endpoint rejects count outside [1, 12]
+
+*For any* call to `POST /api/periods/generate/:count` where `count` is not an integer in [1, 12], the API SHALL return HTTP status `400`.
+
+**Validates: Requirements 18.13**
+
+---
+
+### Property 23: generated periods have contiguous non-overlapping date ranges
+
+*For any* batch of generated periods, each period's `endDate` SHALL equal the day before the next period's `startDate`, and no two periods SHALL have overlapping date ranges.
+
+**Validates: Requirements 18.10**
 
 ---
 
