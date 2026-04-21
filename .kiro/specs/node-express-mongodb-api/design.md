@@ -211,7 +211,9 @@ The Period repository additionally exposes:
 findLatest(): Promise<IPeriod | null>   // most recent period by endDate
 ```
 
-All Period repository methods automatically populate `expenses.expense` and `incomes.income` subdocuments with their full referenced documents.
+All Period repository methods automatically populate `expenses.expense` (including nested `category` and `paymentSource`) and `incomes.income` subdocuments with their full referenced documents.
+
+All Expense repository methods automatically populate `category` and `paymentSource` with their full referenced documents.
 
 The service layer calls the repository and throws `AppError(404, ...)` when `findById` / `update` / `remove` returns null.
 

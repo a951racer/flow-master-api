@@ -3,7 +3,13 @@ import { PeriodInput } from "../schemas/period.schema";
 
 const populateOptions = [
   { path: "incomes.income" },
-  { path: "expenses.expense" },
+  {
+    path: "expenses.expense",
+    populate: [
+      { path: "category" },
+      { path: "paymentSource" },
+    ],
+  },
 ];
 
 export async function findAll(): Promise<IPeriod[]> {

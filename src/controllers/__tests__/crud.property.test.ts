@@ -447,8 +447,11 @@ describe("Expense", () => {
           expect(res.body.data.payee).toBe(payee);
           expect(res.body.data.required).toBe(required);
           expect(res.body.data.inactive).toBe(false);
-          expect(String(res.body.data.category)).toBe(catId);
-          expect(String(res.body.data.paymentSource)).toBe(psId);
+          // category and paymentSource should be populated objects
+          expect(typeof res.body.data.category).toBe("object");
+          expect(res.body.data.category._id).toBe(catId);
+          expect(typeof res.body.data.paymentSource).toBe("object");
+          expect(res.body.data.paymentSource._id).toBe(psId);
         }
       ),
       { numRuns: 10 }
@@ -719,6 +722,9 @@ describe("Period", () => {
     if (period.expenses.length > 0) {
       expect(typeof period.expenses[0].expense).toBe("object");
       expect(period.expenses[0].expense).toHaveProperty("payee");
+      // category and paymentSource should also be populated within the expense
+      expect(typeof period.expenses[0].expense.category).toBe("object");
+      expect(typeof period.expenses[0].expense.paymentSource).toBe("object");
     }
   });
 });
