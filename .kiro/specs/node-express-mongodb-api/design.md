@@ -221,6 +221,12 @@ findLatest(): Promise<IPeriod | null>   // most recent period by endDate
 
 All Period repository methods automatically populate `expenses.expense` (including nested `category` and `paymentSource`) and `incomes.income` subdocuments with their full referenced documents.
 
+The Period repository additionally exposes:
+```typescript
+removeExpenseFromActivePeriods(expenseId: string): Promise<void>
+```
+This removes the matching expense subdocument from all periods whose `endDate >= today` using a single `$pull` + `updateMany`.
+
 All Expense repository methods automatically populate `category` and `paymentSource` with their full referenced documents.
 
 The service layer calls the repository and throws `AppError(404, ...)` when `findById` / `update` / `remove` returns null.

@@ -174,3 +174,59 @@ describe("Expense Audit Trail", () => {
     expect(catChange.newValue).toBe(newCatId);
   });
 });
+
+describe("Expense cascade deactivation to active periods", () => {
+  it("removes the expense from active periods when marked inactive", async () => {
+    // Create an expense
+    const expRes = await request(app).post("/api/expenses").set(auth()).send(baseExpense());
+    const expId = expRes.body.data._id;
+
+    // Create an active period (endDate in the future) that includes the expense
+    const today = new Date();
+    const future = new Date(today);
+    future.setDate(future.getDate() + 14);
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+    const periodRes = await request(app).post("/api/periods").set(auth()).send({
+      startDate: fmt(today),
+      endDate: fmt(future),
+      expenses: [{ expense: expId, status: "Unpaid" }],
+    });
+    expect(periodRes.status).toBe(201);
+    const periodId = periodRes.body.data._id;
+
+    // Confirm expense is in the period
+    const beforeGet = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(beforeGet.body.data.expenses.length).toBe(1);
+
+    // Mark the expense inactive
+    await request(app).put(`/api/expenses/${expId}`).set(auth()).send({ ...baseExpense(), inactive: true, inactiveDate: fmt(today) });
+
+    // Expense should be removed from the active period
+    const afterGet = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(afterGet.body.data.expenses.length).toBe(0);
+  });
+
+  it("does NOT remove the expense from past periods when marked inactive", async () => {
+    const expRes = await request(app).post("/api/expenses").set(auth()).send(baseExpense());
+    const expId = expRes.body.data._id;
+
+    // Create a past period (endDate in the past)
+    const past1 = "2020-01-01";
+    const past2 = "2020-01-14";
+
+    const periodRes = await request(app).post("/api/periods").set(auth()).send({
+      startDate: past1,
+      endDate: past2,
+      expenses: [{ expense: expId, status: "Unpaid" }],
+    });
+    const periodId = periodRes.body.data._id;
+
+    const today = new Date().toISOString().slice(0, 10);
+    await request(app).put(`/api/expenses/${expId}`).set(auth()).send({ ...baseExpense(), inactive: true, inactiveDate: today });
+
+    // Past period should be unchanged
+    const afterGet = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(afterGet.body.data.expenses.length).toBe(1);
+  });
+});

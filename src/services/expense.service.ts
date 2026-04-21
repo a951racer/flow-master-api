@@ -1,5 +1,6 @@
 import * as expenseRepository from "../repositories/expense.repository";
 import * as expenseAuditRepository from "../repositories/expense-audit.repository";
+import * as periodRepository from "../repositories/period.repository";
 import { IExpense } from "../models/expense.model";
 import { IExpenseAuditChange } from "../models/expense-audit.model";
 import { ExpenseInput } from "../schemas/expense.schema";
@@ -68,6 +69,10 @@ export async function update(id: string, data: ExpenseInput): Promise<IExpense> 
   const changes = diffChanges(before, data);
   if (changes.length > 0) {
     await expenseAuditRepository.create(id, "updated", changes);
+  }
+  // Cascade: if expense was just marked inactive, remove it from all active periods
+  if (!before.inactive && data.inactive === true) {
+    await periodRepository.removeExpenseFromActivePeriods(id);
   }
   return after;
 }
