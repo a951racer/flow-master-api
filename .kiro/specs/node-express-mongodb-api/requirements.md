@@ -348,6 +348,22 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 
 ---
 
+### Requirement 25: Income Audit Trail
+
+**User Story:** As a developer, I want every create, update, and delete operation on Income documents to be recorded in an audit trail, so that I can track the full history of changes including what changed, when, and what the previous and new values were.
+
+#### Acceptance Criteria
+
+1. WHEN an Income Document is created, THE API SHALL write an audit entry with `action: "created"`, the `incomeId`, `changedAt` timestamp, and a `changes` array listing each field and its new value (with `previousValue: null`).
+2. WHEN an Income Document is updated, THE API SHALL write an audit entry with `action: "updated"`, the `incomeId`, `changedAt` timestamp, and a `changes` array containing only the fields whose values changed, each with `previousValue` and `newValue`.
+3. WHEN an Income Document is deleted, THE API SHALL write an audit entry with `action: "deleted"`, the `incomeId`, `changedAt` timestamp, and a `changes` array listing each field and its previous value (with `newValue: null`).
+4. IF an update operation results in no field changes, THE API SHALL NOT write an audit entry.
+5. THE API SHALL expose a `GET /api/incomes/:id/audit` endpoint that returns all audit entries for the given Income Document, ordered by `changedAt` ascending, with HTTP status `200`.
+6. THE audit trail SHALL be stored in a dedicated `income-audits` MongoDB collection and SHALL NOT modify the Income Document itself.
+7. THE `changedAt` field SHALL record the exact date and time of the operation as a UTC timestamp.
+
+---
+
 ### Requirement 17: Period Resource Schema
 
 **User Story:** As a developer, I want a well-defined Period schema, so that pay period data is stored consistently and can be queried reliably.

@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Sync Docs and Tests on Code Change",
+  "description": "After any code file is edited, remind the agent to update requirements.md, design.md, and relevant tests to stay in sync",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/**/*.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A source file was just edited. If this was a functional code change (not a test or doc file), ensure the following are also updated as needed:\n1. .kiro/specs/node-express-mongodb-api/requirements.md — update or add acceptance criteria that reflect the change\n2. .kiro/specs/node-express-mongodb-api/design.md — update data models, component descriptions, correctness properties, or testing strategy as needed\n3. Relevant test files under src/**/__tests__/ — add or update unit, integration, or property tests to cover the change\n\nIf these are already up to date, no action is needed."
+  }
+}
