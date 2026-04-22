@@ -148,3 +148,113 @@ describe("Income Audit Trail", () => {
     expect(auditRes.body.data).toHaveLength(0);
   });
 });
+
+describe("Income Cascade to Active Periods", () => {
+  it("removes income from active periods when income is deactivated", async () => {
+    // Create an income
+    const incomeRes = await request(app).post("/api/incomes").set(auth()).send(baseIncome);
+    const incomeId = incomeRes.body.data._id;
+
+    // Create a period with this income (manually for test)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    const periodRes = await request(app)
+      .post("/api/periods")
+      .set(auth())
+      .send({
+        startDate: tomorrow.toISOString().split("T")[0],
+        endDate: nextWeek.toISOString().split("T")[0],
+        incomes: [{ income: incomeId, status: "Pending" }],
+        expenses: [],
+      });
+    expect(periodRes.status).toBe(201);
+    const periodId = periodRes.body.data._id;
+
+    // Verify income is in the period
+    let periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(periodCheck.body.data.incomes).toHaveLength(1);
+
+    // Deactivate the income
+    await request(app)
+      .put(`/api/incomes/${incomeId}`)
+      .set(auth())
+      .send({ ...baseIncome, inactive: true, inactiveDate: "2026-04-22" });
+
+    // Verify income was removed from the period
+    periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(periodCheck.body.data.incomes).toHaveLength(0);
+  });
+
+  it("does NOT remove income from past periods when income is deactivated", async () => {
+    // Create an income
+    const incomeRes = await request(app).post("/api/incomes").set(auth()).send(baseIncome);
+    const incomeId = incomeRes.body.data._id;
+
+    // Create a past period (endDate before today)
+    const lastWeek = new Date();
+    lastWeek.setDate(lastWeek.getDate() - 7);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const periodRes = await request(app)
+      .post("/api/periods")
+      .set(auth())
+      .send({
+        startDate: lastWeek.toISOString().split("T")[0],
+        endDate: yesterday.toISOString().split("T")[0],
+        incomes: [{ income: incomeId, status: "Received" }],
+        expenses: [],
+      });
+    expect(periodRes.status).toBe(201);
+    const periodId = periodRes.body.data._id;
+
+    // Deactivate the income
+    await request(app)
+      .put(`/api/incomes/${incomeId}`)
+      .set(auth())
+      .send({ ...baseIncome, inactive: true, inactiveDate: "2026-04-22" });
+
+    // Verify income is still in the past period
+    const periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(periodCheck.body.data.incomes).toHaveLength(1);
+  });
+
+  it("does NOT cascade when income was already inactive", async () => {
+    // Create an inactive income
+    const incomeRes = await request(app)
+      .post("/api/incomes")
+      .set(auth())
+      .send({ ...baseIncome, inactive: true, inactiveDate: "2026-04-20" });
+    const incomeId = incomeRes.body.data._id;
+
+    // Create an active period with this income (edge case)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    const periodRes = await request(app)
+      .post("/api/periods")
+      .set(auth())
+      .send({
+        startDate: tomorrow.toISOString().split("T")[0],
+        endDate: nextWeek.toISOString().split("T")[0],
+        incomes: [{ income: incomeId, status: "Pending" }],
+        expenses: [],
+      });
+    const periodId = periodRes.body.data._id;
+
+    // Update the income (but it stays inactive)
+    await request(app)
+      .put(`/api/incomes/${incomeId}`)
+      .set(auth())
+      .send({ ...baseIncome, inactive: true, inactiveDate: "2026-04-21", amount: 2500 });
+
+    // Verify income is still in the period (no cascade because it was already inactive)
+    const periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(periodCheck.body.data.incomes).toHaveLength(1);
+  });
+});

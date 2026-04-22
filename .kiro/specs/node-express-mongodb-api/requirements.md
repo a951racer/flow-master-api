@@ -348,6 +348,20 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 
 ---
 
+### Requirement 28: Cascade Income Deactivation to Active Periods
+
+**User Story:** As a developer, I want deactivating an Income to automatically remove it from all active Periods, so that future period views don't include incomes that are no longer active.
+
+#### Acceptance Criteria
+
+1. WHEN an Income Document is updated and `inactive` changes from `false` to `true`, THE API SHALL remove that income's subdocument entry from the `incomes` array of all active Period Documents.
+2. AN active Period is defined as a Period whose `endDate` is greater than or equal to today's date (UTC).
+3. THE cascade SHALL occur atomically after the Income update is persisted, using a single `updateMany` operation on the periods collection.
+4. Periods whose `endDate` is before today SHALL NOT be modified by the cascade.
+5. IF the income was already `inactive: true` before the update, no cascade SHALL occur.
+
+---
+
 ### Requirement 27: Cascade Expense Deactivation to Active Periods
 
 **User Story:** As a developer, I want deactivating an Expense to automatically remove it from all active Periods, so that future period views don't include expenses that are no longer active.
