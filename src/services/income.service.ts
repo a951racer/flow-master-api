@@ -1,5 +1,6 @@
 import * as incomeRepository from "../repositories/income.repository";
 import * as incomeAuditRepository from "../repositories/income-audit.repository";
+import * as periodRepository from "../repositories/period.repository";
 import { IIncome } from "../models/income.model";
 import { IIncomeAuditChange } from "../models/income-audit.model";
 import { IncomeInput } from "../schemas/income.schema";
@@ -52,6 +53,12 @@ export async function update(id: string, data: IncomeInput): Promise<IIncome> {
   const changes = diffChanges(before, data);
   if (changes.length > 0) {
     await incomeAuditRepository.create(id, "updated", changes);
+  }
+  // Cascade: if income was just deactivated, remove from active periods
+  const wasActive = !before.inactive;
+  const nowInactive = data.inactive === true;
+  if (wasActive && nowInactive) {
+    await periodRepository.removeIncomeFromActivePeriods(id);
   }
   return after;
 }

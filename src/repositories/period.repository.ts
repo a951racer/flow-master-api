@@ -54,3 +54,15 @@ export async function removeExpenseFromActivePeriods(expenseId: string): Promise
     { $pull: { expenses: { expense: expenseId } } }
   );
 }
+
+/**
+ * Remove a specific income from the incomes array of all active periods
+ * (periods whose endDate >= today).
+ */
+export async function removeIncomeFromActivePeriods(incomeId: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  await Period.updateMany(
+    { endDate: { $gte: today } },
+    { $pull: { incomes: { income: incomeId } } }
+  );
+}

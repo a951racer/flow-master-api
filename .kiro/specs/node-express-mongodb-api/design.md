@@ -224,8 +224,9 @@ All Period repository methods automatically populate `expenses.expense` (includi
 The Period repository additionally exposes:
 ```typescript
 removeExpenseFromActivePeriods(expenseId: string): Promise<void>
+removeIncomeFromActivePeriods(incomeId: string): Promise<void>
 ```
-This removes the matching expense subdocument from all periods whose `endDate >= today` using a single `$pull` + `updateMany`.
+These remove the matching expense or income subdocument from all periods whose `endDate >= today` using a single `$pull` + `updateMany`.
 
 All Expense repository methods automatically populate `category` and `paymentSource` with their full referenced documents.
 
