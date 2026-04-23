@@ -58,6 +58,10 @@ export async function create(data: ExpenseInput): Promise<IExpense> {
     .filter((f) => (data as Record<string, unknown>)[f] !== undefined)
     .map((f) => ({ field: f, previousValue: null, newValue: (data as Record<string, unknown>)[f] ?? null }));
   await expenseAuditRepository.create(String(expense._id), "created", changes);
+  // If created as active, add to matching active periods
+  if (!data.inactive) {
+    await periodRepository.addExpenseToActivePeriods(String(expense._id), data.dayOfMonth);
+  }
   return expense;
 }
 
@@ -73,6 +77,10 @@ export async function update(id: string, data: ExpenseInput): Promise<IExpense> 
   // Cascade: if expense was just marked inactive, remove it from all active periods
   if (!before.inactive && data.inactive === true) {
     await periodRepository.removeExpenseFromActivePeriods(id);
+  }
+  // Cascade: if expense was just re-activated, add it to matching active periods
+  if (before.inactive && data.inactive === false) {
+    await periodRepository.addExpenseToActivePeriods(id, data.dayOfMonth);
   }
   return after;
 }

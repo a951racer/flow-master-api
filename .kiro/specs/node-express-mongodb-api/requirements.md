@@ -352,6 +352,23 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 
 ---
 
+### Requirement 30: Cascade Expense and Income Activation to Active Periods
+
+**User Story:** As a developer, I want creating an active expense or income, or reactivating one, to automatically add it to all relevant active Periods, so that period views stay current without manual intervention.
+
+#### Acceptance Criteria
+
+1. WHEN an Expense Document is created with `inactive` not set to `true`, THE API SHALL add a PeriodExpenseEntry subdocument (with `status: "Unpaid"`) to every active Period whose date range contains the expense's `dayOfMonth`.
+2. WHEN an Expense Document is updated and `inactive` changes from `true` to `false`, THE API SHALL add a PeriodExpenseEntry subdocument (with `status: "Unpaid"`) to every active Period whose date range contains the expense's `dayOfMonth`.
+3. WHEN an Income Document is created with `inactive` not set to `true`, THE API SHALL add a PeriodIncomeEntry subdocument (with `status: "Pending"`) to every active Period whose date range contains the income's `dayOfMonth`.
+4. WHEN an Income Document is updated and `inactive` changes from `true` to `false`, THE API SHALL add a PeriodIncomeEntry subdocument (with `status: "Pending"`) to every active Period whose date range contains the income's `dayOfMonth`.
+5. AN active Period is defined as a Period whose `endDate` is greater than or equal to today's date (UTC).
+6. A `dayOfMonth` value is considered to fall within a period if, in any calendar month that overlaps the period, the clamped day (min of `dayOfMonth` and last day of that month) falls on or between `startDate` and `endDate`.
+7. IF the expense or income is already present in a period's subdocument array, THE API SHALL NOT add a duplicate entry.
+8. Periods whose `endDate` is before today SHALL NOT be modified.
+
+---
+
 ### Requirement 28: Cascade Income Deactivation to Active Periods
 
 **User Story:** As a developer, I want deactivating an Income to automatically remove it from all active Periods, so that future period views don't include incomes that are no longer active.

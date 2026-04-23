@@ -42,6 +42,10 @@ export async function create(data: IncomeInput): Promise<IIncome> {
     .filter((f) => (data as Record<string, unknown>)[f] !== undefined)
     .map((f) => ({ field: f, previousValue: null, newValue: (data as Record<string, unknown>)[f] ?? null }));
   await incomeAuditRepository.create(String(income._id), "created", changes);
+  // If created as active, add to matching active periods
+  if (!data.inactive) {
+    await periodRepository.addIncomeToActivePeriods(String(income._id), data.dayOfMonth);
+  }
   return income;
 }
 
@@ -59,6 +63,10 @@ export async function update(id: string, data: IncomeInput): Promise<IIncome> {
   const nowInactive = data.inactive === true;
   if (wasActive && nowInactive) {
     await periodRepository.removeIncomeFromActivePeriods(id);
+  }
+  // Cascade: if income was just re-activated, add to matching active periods
+  if (before.inactive && data.inactive === false) {
+    await periodRepository.addIncomeToActivePeriods(id, data.dayOfMonth);
   }
   return after;
 }
