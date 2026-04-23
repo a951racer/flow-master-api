@@ -728,3 +728,86 @@ describe("Period", () => {
     }
   });
 });
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+describe("User", () => {
+  /**
+   * Property 4: Collection response shape and count consistency
+   * Validates: Requirements 29.1, 13.3
+   */
+  it("P4: GET /api/users returns data array and count === data.length", async () => {
+    // Feature: node-express-mongodb-api, Property 4: collection_response_shape_and_count_consistency
+    await fc.assert(
+      fc.asyncProperty(
+        fc.array(
+          fc.record({
+            firstName: fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0),
+            lastName: fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0),
+            email: fc.emailAddress(),
+            password: fc.string({ minLength: 8, maxLength: 20 }).filter((s) => s.trim().length >= 8),
+          }),
+          { minLength: 1, maxLength: 3 }
+        ),
+        async (users) => {
+          await clearDb();
+          for (const u of users) {
+            await request(app).post("/api/auth/register").send(u);
+          }
+          const res = await request(app).get("/api/users").set(auth());
+          expect(res.status).toBe(200);
+          expect(res.body).toHaveProperty("data");
+          expect(Array.isArray(res.body.data)).toBe(true);
+          expect(res.body).toHaveProperty("count");
+          expect(res.body.count).toBe(res.body.data.length);
+        }
+      ),
+      { numRuns: 5 }
+    );
+  });
+
+  /**
+   * Property 13: Plaintext password is never returned in responses
+   * Validates: Requirements 29.2, 3.5
+   */
+  it("P13: GET /api/users never includes password field on any user", async () => {
+    // Feature: node-express-mongodb-api, Property 13: plaintext_password_never_returned
+    await fc.assert(
+      fc.asyncProperty(
+        fc.array(
+          fc.record({
+            firstName: fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0),
+            lastName: fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0),
+            email: fc.emailAddress(),
+            password: fc.string({ minLength: 8, maxLength: 20 }).filter((s) => s.trim().length >= 8),
+          }),
+          { minLength: 1, maxLength: 3 }
+        ),
+        async (users) => {
+          await clearDb();
+          for (const u of users) {
+            await request(app).post("/api/auth/register").send(u);
+          }
+          const res = await request(app).get("/api/users").set(auth());
+          expect(res.status).toBe(200);
+          for (const user of res.body.data) {
+            expect(user).not.toHaveProperty("password");
+            expect(user).toHaveProperty("_id");
+            expect(user).toHaveProperty("firstName");
+            expect(user).toHaveProperty("lastName");
+            expect(user).toHaveProperty("email");
+          }
+        }
+      ),
+      { numRuns: 5 }
+    );
+  });
+
+  /**
+   * Validates: Requirements 29.3
+   */
+  it("GET /api/users returns 401 without a valid JWT", async () => {
+    const res = await request(app).get("/api/users");
+    expect(res.status).toBe(401);
+  });
+});
