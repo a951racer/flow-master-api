@@ -37,6 +37,7 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 - **PeriodIncomeStatus**: An enumeration of receipt statuses for a PeriodIncomeEntry: `"Pending"` or `"Received"`.
 - **helmet**: An Express middleware package that sets secure HTTP response headers (e.g. `X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`, `X-XSS-Protection`) to protect against common web vulnerabilities.
 - **morgan**: An HTTP request logger middleware for Node.js/Express that logs method, URL, status code, and response time for every incoming request.
+- **cors**: An Express middleware package that enables Cross-Origin Resource Sharing (CORS), allowing the API to accept requests from web applications hosted on different domains.
 - **Procfile**: A plain-text file at the project root that declares the command Heroku uses to start the web process. For this API the content is `web: node dist/server.js`.
 - **Heroku Config Vars**: Environment variables configured in the Heroku dashboard (or CLI) that are injected into the dyno at runtime. They replace the `.env` file in production and are the required mechanism for supplying `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, and `NODE_ENV` to the deployed application. `PORT` is set automatically by Heroku and must not be overridden.
 
@@ -68,6 +69,9 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 3. THE API SHALL read `PORT` exclusively from the environment variable provided at runtime; THE API SHALL NOT hardcode a fallback port value in production — when deployed on Heroku, `PORT` is assigned dynamically by the platform and must be used as-is.
 4. THE API SHALL load environment variables from a `.env` file at startup (for local development only).
 5. THE API SHALL parse incoming JSON request bodies automatically for all routes.
+6. THE API SHALL configure CORS (Cross-Origin Resource Sharing) middleware to allow requests from the frontend application.
+7. THE API SHALL read the allowed frontend origin from an environment variable named `FRONTEND_URL`; if not set, THE API SHALL default to allowing all origins (`*`) for development purposes.
+8. THE API SHALL enable credentials support in CORS configuration to allow cookies and authorization headers to be sent cross-origin.
 
 ---
 

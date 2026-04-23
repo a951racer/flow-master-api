@@ -1,6 +1,7 @@
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
+import cors from "cors";
 
 import { config } from "./config/env";
 import { errorHandler } from "./middleware/error-handler";
@@ -13,6 +14,12 @@ import incomeRouter from "./routes/income.routes";
 import periodRouter from "./routes/period.routes";
 
 const app = express();
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  credentials: true,
+}));
 
 // Security headers
 app.use(helmet());

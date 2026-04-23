@@ -26,7 +26,8 @@ Key technology choices:
 ```mermaid
 flowchart TD
     Client -->|HTTP Request| Router
-    Router --> Helmet
+    Router --> CORS
+    CORS --> Helmet
     Helmet --> Morgan
     Morgan --> JWT_Authenticator
     JWT_Authenticator --> Validator
@@ -49,6 +50,7 @@ flowchart TD
 
 ```
 Request
+  -> cors() (cross-origin resource sharing)
   -> helmet() (security headers)
   -> morgan() (request logging)
   -> express.json()
@@ -160,6 +162,8 @@ Each schema file exports:
 2. The inferred TypeScript type via `z.infer<typeof schema>`.
 
 ### Middleware
+
+**`cors(options)`** — applied globally in `app.ts` via `app.use(cors(options))`. Enables Cross-Origin Resource Sharing to allow the frontend application to make requests to the API from a different origin. Configured with `origin: process.env.FRONTEND_URL || '*'` to allow requests from the frontend URL specified in environment variables, defaulting to all origins for development. Configured with `credentials: true` to allow cookies and authorization headers to be sent cross-origin.
 
 **`helmet()`** — applied globally in `app.ts` via `app.use(helmet())`. Sets secure HTTP headers including `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Strict-Transport-Security`, and others. No custom configuration required.
 
@@ -679,13 +683,14 @@ The following scripts are required:
 
 All environment variables must be set as Heroku Config Vars (not committed to version control):
 
-| Config Var     | Notes                                                                 |
-|----------------|-----------------------------------------------------------------------|
-| `MONGODB_URI`  | MongoDB Atlas connection string                                       |
-| `PORT`         | Set automatically by Heroku — do not set manually                    |
-| `JWT_SECRET`   | Secret key for JWT signing                                            |
-| `JWT_EXPIRES_IN` | JWT expiry duration (e.g. `"1h"`); defaults to `"1h"` if absent   |
-| `NODE_ENV`     | Set to `production` automatically by Heroku — do not override        |
+| Config Var       | Notes                                                                 |
+|------------------|-----------------------------------------------------------------------|
+| `MONGODB_URI`    | MongoDB Atlas connection string                                       |
+| `PORT`           | Set automatically by Heroku — do not set manually                    |
+| `JWT_SECRET`     | Secret key for JWT signing                                            |
+| `JWT_EXPIRES_IN` | JWT expiry duration (e.g. `"1h"`); defaults to `"1h"` if absent     |
+| `NODE_ENV`       | Set to `production` automatically by Heroku — do not override        |
+| `FRONTEND_URL`   | Frontend application URL for CORS; defaults to `*` (all origins) if absent |
 
 `PORT` is assigned dynamically by Heroku on each dyno start. The application must bind to `process.env.PORT` with no hardcoded fallback.
 
