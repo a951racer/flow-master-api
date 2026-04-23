@@ -258,3 +258,103 @@ describe("Income Cascade to Active Periods", () => {
     expect(periodCheck.body.data.incomes).toHaveLength(1);
   });
 });
+
+describe("Income activation cascade to active periods", () => {
+  // Use a period that spans the entire current month + next month to reliably contain dayOfMonth=15
+  function activePeriodSpan() {
+    const start = new Date();
+    start.setDate(1);
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 2);
+    end.setDate(0);
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    return { startDate: fmt(start), endDate: fmt(end) };
+  }
+
+  it("adds income to active periods on create when active", async () => {
+    const span = activePeriodSpan();
+    const periodRes = await request(app).post("/api/periods").set(auth()).send({
+      ...span,
+      expenses: [],
+      incomes: [],
+    });
+    expect(periodRes.status).toBe(201);
+    const periodId = periodRes.body.data._id;
+
+    const incRes = await request(app).post("/api/incomes").set(auth()).send(baseIncome);
+    expect(incRes.status).toBe(201);
+    const incId = incRes.body.data._id;
+
+    const periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    const incomeIds = periodCheck.body.data.incomes.map((e: { income: { _id: string } | string }) =>
+      typeof e.income === "object" ? e.income._id : e.income
+    );
+    expect(incomeIds).toContain(incId);
+  });
+
+  it("does NOT add income to active periods on create when inactive", async () => {
+    const span = activePeriodSpan();
+    const periodRes = await request(app).post("/api/periods").set(auth()).send({
+      ...span,
+      expenses: [],
+      incomes: [],
+    });
+    const periodId = periodRes.body.data._id;
+
+    await request(app).post("/api/incomes").set(auth()).send({
+      ...baseIncome,
+      inactive: true,
+      inactiveDate: new Date().toISOString().slice(0, 10),
+    });
+
+    const periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(periodCheck.body.data.incomes).toHaveLength(0);
+  });
+
+  it("adds income to active periods when reactivated", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const incRes = await request(app).post("/api/incomes").set(auth()).send({
+      ...baseIncome,
+      inactive: true,
+      inactiveDate: today,
+    });
+    const incId = incRes.body.data._id;
+
+    const span = activePeriodSpan();
+    const periodRes = await request(app).post("/api/periods").set(auth()).send({
+      ...span,
+      expenses: [],
+      incomes: [],
+    });
+    const periodId = periodRes.body.data._id;
+
+    await request(app).put(`/api/incomes/${incId}`).set(auth()).send({ ...baseIncome, inactive: false });
+
+    const periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    const incomeIds = periodCheck.body.data.incomes.map((e: { income: { _id: string } | string }) =>
+      typeof e.income === "object" ? e.income._id : e.income
+    );
+    expect(incomeIds).toContain(incId);
+  });
+
+  it("does NOT add a duplicate entry if income is already in the period", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const incRes = await request(app).post("/api/incomes").set(auth()).send(baseIncome);
+    const incId = incRes.body.data._id;
+
+    const span = activePeriodSpan();
+    const periodRes = await request(app).post("/api/periods").set(auth()).send({
+      ...span,
+      expenses: [],
+      incomes: [{ income: incId, status: "Pending" }],
+    });
+    const periodId = periodRes.body.data._id;
+
+    // Deactivate then reactivate — should not duplicate
+    await request(app).put(`/api/incomes/${incId}`).set(auth()).send({ ...baseIncome, inactive: true, inactiveDate: today });
+    await request(app).put(`/api/incomes/${incId}`).set(auth()).send({ ...baseIncome, inactive: false });
+
+    const periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(periodCheck.body.data.incomes).toHaveLength(1);
+  });
+});

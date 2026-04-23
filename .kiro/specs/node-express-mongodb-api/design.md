@@ -236,8 +236,11 @@ The Period repository additionally exposes:
 ```typescript
 removeExpenseFromActivePeriods(expenseId: string): Promise<void>
 removeIncomeFromActivePeriods(incomeId: string): Promise<void>
+addExpenseToActivePeriods(expenseId: string, dayOfMonth: number): Promise<void>
+addIncomeToActivePeriods(incomeId: string, dayOfMonth: number): Promise<void>
 ```
-These remove the matching expense or income subdocument from all periods whose `endDate >= today` using a single `$pull` + `updateMany`.
+- `remove*` — pull the matching subdocument from all periods whose `endDate >= today` via `$pull` + `updateMany`.
+- `add*` — iterate active periods, check `dayFallsInPeriod`, and push a new subdocument entry if not already present.
 
 All Expense repository methods automatically populate `category` and `paymentSource` with their full referenced documents.
 

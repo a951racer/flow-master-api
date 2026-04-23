@@ -230,3 +230,103 @@ describe("Expense cascade deactivation to active periods", () => {
     expect(afterGet.body.data.expenses.length).toBe(1);
   });
 });
+
+describe("Expense activation cascade to active periods", () => {
+  // Use a period that spans the entire current month + next month to reliably contain dayOfMonth=10
+  function activePeriodSpan() {
+    const start = new Date();
+    start.setDate(1); // first of current month
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 2);
+    end.setDate(0); // last day of next month
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    return { startDate: fmt(start), endDate: fmt(end) };
+  }
+
+  it("adds expense to active periods on create when active", async () => {
+    const span = activePeriodSpan();
+    const periodRes = await request(app).post("/api/periods").set(auth()).send({
+      ...span,
+      expenses: [],
+      incomes: [],
+    });
+    expect(periodRes.status).toBe(201);
+    const periodId = periodRes.body.data._id;
+
+    const expRes = await request(app).post("/api/expenses").set(auth()).send(baseExpense());
+    expect(expRes.status).toBe(201);
+    const expId = expRes.body.data._id;
+
+    const periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    const expenseIds = periodCheck.body.data.expenses.map((e: { expense: { _id: string } | string }) =>
+      typeof e.expense === "object" ? e.expense._id : e.expense
+    );
+    expect(expenseIds).toContain(expId);
+  });
+
+  it("does NOT add expense to active periods on create when inactive", async () => {
+    const span = activePeriodSpan();
+    const periodRes = await request(app).post("/api/periods").set(auth()).send({
+      ...span,
+      expenses: [],
+      incomes: [],
+    });
+    const periodId = periodRes.body.data._id;
+
+    await request(app).post("/api/expenses").set(auth()).send({
+      ...baseExpense(),
+      inactive: true,
+      inactiveDate: new Date().toISOString().slice(0, 10),
+    });
+
+    const periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(periodCheck.body.data.expenses).toHaveLength(0);
+  });
+
+  it("adds expense to active periods when reactivated", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const expRes = await request(app).post("/api/expenses").set(auth()).send({
+      ...baseExpense(),
+      inactive: true,
+      inactiveDate: today,
+    });
+    const expId = expRes.body.data._id;
+
+    const span = activePeriodSpan();
+    const periodRes = await request(app).post("/api/periods").set(auth()).send({
+      ...span,
+      expenses: [],
+      incomes: [],
+    });
+    const periodId = periodRes.body.data._id;
+
+    await request(app).put(`/api/expenses/${expId}`).set(auth()).send({ ...baseExpense(), inactive: false });
+
+    const periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    const expenseIds = periodCheck.body.data.expenses.map((e: { expense: { _id: string } | string }) =>
+      typeof e.expense === "object" ? e.expense._id : e.expense
+    );
+    expect(expenseIds).toContain(expId);
+  });
+
+  it("does NOT add a duplicate entry if expense is already in the period", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const expRes = await request(app).post("/api/expenses").set(auth()).send(baseExpense());
+    const expId = expRes.body.data._id;
+
+    const span = activePeriodSpan();
+    const periodRes = await request(app).post("/api/periods").set(auth()).send({
+      ...span,
+      expenses: [{ expense: expId, status: "Unpaid" }],
+      incomes: [],
+    });
+    const periodId = periodRes.body.data._id;
+
+    // Deactivate then reactivate — should not duplicate
+    await request(app).put(`/api/expenses/${expId}`).set(auth()).send({ ...baseExpense(), inactive: true, inactiveDate: today });
+    await request(app).put(`/api/expenses/${expId}`).set(auth()).send({ ...baseExpense(), inactive: false });
+
+    const periodCheck = await request(app).get(`/api/periods/${periodId}`).set(auth());
+    expect(periodCheck.body.data.expenses).toHaveLength(1);
+  });
+});

@@ -66,3 +66,59 @@ export async function removeIncomeFromActivePeriods(incomeId: string): Promise<v
     { $pull: { incomes: { income: incomeId } } }
   );
 }
+
+/** Returns true if dayOfMonth falls within [startDate, endDate] inclusive. */
+function dayFallsInPeriod(dayOfMonth: number, startDate: string, endDate: string): boolean {
+  const start = new Date(startDate + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (cursor <= endMonth) {
+    const year = cursor.getFullYear();
+    const month = cursor.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const clampedDay = Math.min(dayOfMonth, lastDay);
+    const candidate = new Date(year, month, clampedDay);
+    if (candidate >= start && candidate <= end) return true;
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return false;
+}
+
+/**
+ * Add an expense subdocument to all active periods (endDate >= today) where
+ * the expense's dayOfMonth falls within the period's date range, and the
+ * expense is not already present.
+ */
+export async function addExpenseToActivePeriods(expenseId: string, dayOfMonth: number): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const activePeriods = await Period.find({ endDate: { $gte: today } });
+  for (const period of activePeriods) {
+    const alreadyPresent = period.expenses.some((e) => String(e.expense) === expenseId);
+    if (!alreadyPresent && dayFallsInPeriod(dayOfMonth, period.startDate, period.endDate)) {
+      await Period.updateOne(
+        { _id: period._id },
+        { $push: { expenses: { expense: expenseId, status: "Unpaid" } } }
+      );
+    }
+  }
+}
+
+/**
+ * Add an income subdocument to all active periods (endDate >= today) where
+ * the income's dayOfMonth falls within the period's date range, and the
+ * income is not already present.
+ */
+export async function addIncomeToActivePeriods(incomeId: string, dayOfMonth: number): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const activePeriods = await Period.find({ endDate: { $gte: today } });
+  for (const period of activePeriods) {
+    const alreadyPresent = period.incomes.some((e) => String(e.income) === incomeId);
+    if (!alreadyPresent && dayFallsInPeriod(dayOfMonth, period.startDate, period.endDate)) {
+      await Period.updateOne(
+        { _id: period._id },
+        { $push: { incomes: { income: incomeId, status: "Pending" } } }
+      );
+    }
+  }
+}
