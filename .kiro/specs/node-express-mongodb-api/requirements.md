@@ -467,3 +467,15 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 
 1. THE API SHALL apply `helmet` middleware globally so that all HTTP responses include secure headers (`X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Strict-Transport-Security`, and others set by helmet's defaults).
 2. THE API SHALL apply `morgan` HTTP request logging middleware globally; WHEN `NODE_ENV` is `"development"` THE API SHALL use the `"dev"` format; in all other environments THE API SHALL use the `"combined"` format.
+
+---
+
+### Requirement 29: List Users Endpoint
+
+**User Story:** As a Client, I want to retrieve a list of all registered users, so that I can display or manage user accounts.
+
+#### Acceptance Criteria
+
+1. WHEN a `GET /api/users` request is received with a valid JWT, THE Controller SHALL return an array of all User Documents in the Collection with HTTP status `200`.
+2. THE response SHALL NOT include the `password` field on any User Document; all other fields (`_id`, `firstName`, `lastName`, `email`, `createdAt`, `updatedAt`) SHALL be included.
+3. IF the request is made without a valid JWT, THE JWT_Authenticator SHALL return HTTP status `401`.

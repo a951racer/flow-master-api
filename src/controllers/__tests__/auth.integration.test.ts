@@ -123,3 +123,43 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("GET /api/users", () => {
+  let authToken: string;
+
+  beforeAll(async () => {
+    const res = await request(app).post("/api/auth/register").send(validRegisterPayload);
+    authToken = res.body.data.token;
+  });
+
+  it("returns 200 with a collection of users", async () => {
+    const res = await request(app)
+      .get("/api/users")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("data");
+    expect(res.body).toHaveProperty("count");
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.count).toBe(res.body.data.length);
+  });
+
+  it("does not include password in any user document", async () => {
+    const res = await request(app)
+      .get("/api/users")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    for (const user of res.body.data) {
+      expect(user).not.toHaveProperty("password");
+      expect(user).toHaveProperty("_id");
+      expect(user).toHaveProperty("email");
+      expect(user).toHaveProperty("firstName");
+      expect(user).toHaveProperty("lastName");
+    }
+  });
+
+  it("returns 401 without a JWT", async () => {
+    const res = await request(app).get("/api/users");
+    expect(res.status).toBe(401);
+  });
+});
