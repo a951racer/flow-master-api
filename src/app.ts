@@ -7,6 +7,7 @@ import { config } from "./config/env";
 import { errorHandler } from "./middleware/error-handler";
 
 import authRouter from "./routes/auth.routes";
+import userRouter from "./routes/user.routes";
 import expenseCategoryRouter from "./routes/expense-category.routes";
 import paymentSourceRouter from "./routes/payment-source.routes";
 import expenseRouter from "./routes/expense.routes";
@@ -33,6 +34,7 @@ app.use(express.json());
 
 // Routes
 app.use("/api/auth", authRouter);
+app.use("/api/users", userRouter);
 app.use("/api/expense-categories", expenseCategoryRouter);
 app.use("/api/payment-sources", paymentSourceRouter);
 app.use("/api/expenses", expenseRouter);

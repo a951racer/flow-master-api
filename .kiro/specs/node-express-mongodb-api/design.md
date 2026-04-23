@@ -103,6 +103,7 @@ src/
     period.service.ts
   controllers/
     auth.controller.ts
+    user.controller.ts  # getAll — returns users without password field
     expense-category.controller.ts
     payment-source.controller.ts
     expense.controller.ts
@@ -117,6 +118,7 @@ src/
     error-handler.ts
   routes/
     auth.routes.ts
+    user.routes.ts      # GET /api/users (JWT-protected)
     expense-category.routes.ts
     payment-source.routes.ts
     expense.routes.ts   # includes GET /:id/audit sub-route
@@ -216,6 +218,11 @@ findById(id: string): Promise<T | null>
 create(data: CreateDto): Promise<T>
 update(id: string, data: UpdateDto): Promise<T | null>
 remove(id: string): Promise<boolean>
+```
+
+The User repository additionally exposes:
+```typescript
+findAll(): Promise<Omit<IUser, "password">[]>  // excludes password via .select("-password")
 ```
 
 The Period repository additionally exposes:
