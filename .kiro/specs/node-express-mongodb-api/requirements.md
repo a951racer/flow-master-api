@@ -496,3 +496,20 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 1. WHEN a `GET /api/users` request is received with a valid JWT, THE Controller SHALL return an array of all User Documents in the Collection with HTTP status `200`.
 2. THE response SHALL NOT include the `password` field on any User Document; all other fields (`_id`, `firstName`, `lastName`, `email`, `createdAt`, `updatedAt`) SHALL be included.
 3. IF the request is made without a valid JWT, THE JWT_Authenticator SHALL return HTTP status `401`.
+
+---
+
+### Requirement 31: Update and Delete User Endpoints
+
+**User Story:** As a Client, I want to update or delete a user account, so that I can manage user records over their lifecycle.
+
+#### Acceptance Criteria
+
+1. WHEN a `PUT /api/users/:id` request is received with a valid JWT and a valid document ID, THE Controller SHALL update the matching User Document with the provided fields and return the updated Document (excluding `password`) with HTTP status `200`.
+2. WHEN a `DELETE /api/users/:id` request is received with a valid JWT and a valid document ID, THE Controller SHALL delete the matching User Document and return HTTP status `204`.
+3. THE Repository `update` function SHALL use `findByIdAndUpdate` with `{ new: true }` and SHALL exclude the `password` field from the returned document via `.select("-password")`.
+4. THE Repository `remove` function SHALL use `findByIdAndDelete` to permanently remove the User Document.
+5. IF a `PUT` or `DELETE` request is received with an ID that does not match any User Document, THEN THE Controller SHALL return HTTP status `404` with a descriptive error message.
+6. IF a route parameter ID is not a valid MongoDB ObjectId format, THEN THE Validator SHALL return HTTP status `400` with a descriptive error message.
+7. THE `update` endpoint SHALL NOT allow the `password` field to be updated via this endpoint; the `Partial<Omit<IUser, "password">>` type constraint SHALL enforce this at the repository level.
+8. IF the request is made without a valid JWT, THE JWT_Authenticator SHALL return HTTP status `401`.

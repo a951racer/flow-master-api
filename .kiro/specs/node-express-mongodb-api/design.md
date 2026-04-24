@@ -223,6 +223,8 @@ remove(id: string): Promise<boolean>
 The User repository additionally exposes:
 ```typescript
 findAll(): Promise<Omit<IUser, "password">[]>  // excludes password via .select("-password")
+update(id: string, data: Partial<Omit<IUser, "password">>): Promise<Omit<IUser, "password"> | null>  // excludes password via .select("-password")
+remove(id: string): Promise<void>
 ```
 
 The Period repository additionally exposes:
