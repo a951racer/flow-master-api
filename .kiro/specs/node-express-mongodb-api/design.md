@@ -258,7 +258,7 @@ The `count` route parameter must be an integer in [1, 12]. The service:
    - Computes `startDate` as the smallest paycheck day strictly greater than the anchor day in the same month; if none, rolls to the next month and uses the smallest paycheck day.
    - Computes `endDate` as the day before the *next* period's `startDate` (applying the same algorithm one step ahead).
    - Populates `expenses` with all active expenses whose `dayOfMonth` falls within the period, each with `status: "Unpaid"`.
-   - Populates `incomes` with all active incomes whose `dayOfMonth` falls within the period, each with `status: "Pending"`.
+   - Populates `incomes` with all active incomes whose `dayOfMonth` falls within the period, each with `isReceived: false`.
    - A `dayOfMonth` value is considered to fall within a period if, in any calendar month that overlaps the period, the clamped day (min of `dayOfMonth` and last day of that month) falls on or between `startDate` and `endDate`.
 4. Returns the created periods as a collection response.
 
@@ -363,13 +363,14 @@ If no active paycheck incomes exist, throws `AppError(422, "No active paycheck i
 | expense        | ObjectId | required, ref: Expense                             |
 | status         | String   | required, enum: "Unpaid" \| "Paid" \| "Deferred"  |
 | overrideAmount | Number   | optional, positive                                 |
+| isCarryOver    | Boolean  | optional, default: false; true when deferred from a previous period |
 
 ### PeriodIncomeEntry (embedded in Period)
 
 | Field          | Type     | Constraints                              |
 |----------------|----------|------------------------------------------|
 | income         | ObjectId | required, ref: Income                    |
-| status         | String   | required, enum: "Pending" \| "Received"  |
+| isReceived     | Boolean  | required, default: false                 |
 | overrideAmount | Number   | optional, positive                       |
 
 ### ExpenseAudit
@@ -458,11 +459,12 @@ const periodExpenseEntrySchema = z.object({
   expense: objectIdSchema,
   status: z.enum(["Unpaid", "Paid", "Deferred"]),
   overrideAmount: z.number().positive().optional(),
+  isCarryOver: z.boolean().optional(),
 });
 
 const periodIncomeEntrySchema = z.object({
   income: objectIdSchema,
-  status: z.enum(["Pending", "Received"]),
+  isReceived: z.boolean(),
   overrideAmount: z.number().positive().optional(),
 });
 ```

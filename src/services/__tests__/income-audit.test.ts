@@ -167,7 +167,7 @@ describe("Income Cascade to Active Periods", () => {
       .send({
         startDate: tomorrow.toISOString().split("T")[0],
         endDate: nextWeek.toISOString().split("T")[0],
-        incomes: [{ income: incomeId, status: "Pending" }],
+        incomes: [{ income: incomeId, isReceived: false }],
         expenses: [],
       });
     expect(periodRes.status).toBe(201);
@@ -205,7 +205,7 @@ describe("Income Cascade to Active Periods", () => {
       .send({
         startDate: lastWeek.toISOString().split("T")[0],
         endDate: yesterday.toISOString().split("T")[0],
-        incomes: [{ income: incomeId, status: "Received" }],
+        incomes: [{ income: incomeId, isReceived: true }],
         expenses: [],
       });
     expect(periodRes.status).toBe(201);
@@ -242,7 +242,7 @@ describe("Income Cascade to Active Periods", () => {
       .send({
         startDate: tomorrow.toISOString().split("T")[0],
         endDate: nextWeek.toISOString().split("T")[0],
-        incomes: [{ income: incomeId, status: "Pending" }],
+        incomes: [{ income: incomeId, isReceived: false }],
         expenses: [],
       });
     const periodId = periodRes.body.data._id;
@@ -346,7 +346,7 @@ describe("Income activation cascade to active periods", () => {
     const periodRes = await request(app).post("/api/periods").set(auth()).send({
       ...span,
       expenses: [],
-      incomes: [{ income: incId, status: "Pending" }],
+      incomes: [{ income: incId, isReceived: false }],
     });
     const periodId = periodRes.body.data._id;
 

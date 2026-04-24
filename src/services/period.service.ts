@@ -106,7 +106,7 @@ export async function generatePeriods(count: number): Promise<IPeriod[]> {
 
     const incomes = activeIncomes
       .filter((inc) => dayFallsInPeriod(inc.dayOfMonth, startStr, endStr))
-      .map((inc) => ({ income: inc._id.toString(), status: "Pending" as const }));
+      .map((inc) => ({ income: inc._id.toString(), isReceived: false }));
 
     const expenses = activeExpenses
       .filter((exp) => dayFallsInPeriod(exp.dayOfMonth, startStr, endStr))

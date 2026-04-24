@@ -4,7 +4,7 @@ const objectIdSchema = z.string().regex(/^[a-f\d]{24}$/i, "Invalid ObjectId");
 
 export const periodIncomeEntrySchema = z.object({
   income: objectIdSchema,
-  status: z.enum(["Pending", "Received"]),
+  isReceived: z.boolean(),
   overrideAmount: z.number().positive().optional(),
 });
 
@@ -12,6 +12,7 @@ export const periodExpenseEntrySchema = z.object({
   expense: objectIdSchema,
   status: z.enum(["Unpaid", "Paid", "Deferred"]),
   overrideAmount: z.number().positive().optional(),
+  isCarryOver: z.boolean().optional(),
 });
 
 export const periodSchema = z

@@ -117,7 +117,7 @@ export async function addIncomeToActivePeriods(incomeId: string, dayOfMonth: num
     if (!alreadyPresent && dayFallsInPeriod(dayOfMonth, period.startDate, period.endDate)) {
       await Period.updateOne(
         { _id: period._id },
-        { $push: { incomes: { income: incomeId, status: "Pending" } } }
+        { $push: { incomes: { income: incomeId, isReceived: false } } }
       );
     }
   }

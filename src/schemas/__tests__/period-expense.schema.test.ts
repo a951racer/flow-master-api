@@ -1,5 +1,6 @@
 import * as fc from "fast-check";
 import { periodExpenseSchema } from "../../schemas/period-expense.schema";
+import { periodExpenseEntrySchema } from "../../schemas/period.schema";
 
 const validObjectId = "a".repeat(24);
 const validPeriodExpenseBase = {
@@ -49,6 +50,39 @@ describe("periodExpenseSchema - Property 9: overrideAmount must be positive when
         (overrideAmount) => {
           const payload = { ...validPeriodExpenseBase, overrideAmount };
           const result = periodExpenseSchema.safeParse(payload);
+          return result.success === false;
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+});
+
+// Feature: node-express-mongodb-api, Property: isCarryOver must be boolean when present
+describe("periodExpenseEntrySchema - isCarryOver field", () => {
+  const validBase = {
+    expense: "a".repeat(24),
+    status: "Unpaid" as const,
+  };
+
+  it("accepts a valid entry without isCarryOver", () => {
+    expect(periodExpenseEntrySchema.safeParse(validBase).success).toBe(true);
+  });
+
+  it("accepts isCarryOver: true", () => {
+    expect(periodExpenseEntrySchema.safeParse({ ...validBase, isCarryOver: true }).success).toBe(true);
+  });
+
+  it("accepts isCarryOver: false", () => {
+    expect(periodExpenseEntrySchema.safeParse({ ...validBase, isCarryOver: false }).success).toBe(true);
+  });
+
+  it("rejects non-boolean isCarryOver values", () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(fc.string(), fc.integer(), fc.constant(null)),
+        (val) => {
+          const result = periodExpenseEntrySchema.safeParse({ ...validBase, isCarryOver: val });
           return result.success === false;
         }
       ),
