@@ -34,7 +34,6 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 - **PeriodExpenseEntry**: An embedded subdocument within a Period that records the payment status and optional override amount for one Expense within that Period. Not stored in a separate collection.
 - **PeriodIncomeEntry**: An embedded subdocument within a Period that records the receipt status and optional override amount for one Income within that Period. Not stored in a separate collection.
 - **PeriodExpenseStatus**: An enumeration of payment statuses for a PeriodExpenseEntry: `"Unpaid"`, `"Paid"`, or `"Deferred"`.
-- **PeriodIncomeStatus**: An enumeration of receipt statuses for a PeriodIncomeEntry: `"Pending"` or `"Received"`.
 - **helmet**: An Express middleware package that sets secure HTTP response headers (e.g. `X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`, `X-XSS-Protection`) to protect against common web vulnerabilities.
 - **morgan**: An HTTP request logger middleware for Node.js/Express that logs method, URL, status code, and response time for every incoming request.
 - **cors**: An Express middleware package that enables Cross-Origin Resource Sharing (CORS), allowing the API to accept requests from web applications hosted on different domains.
@@ -360,8 +359,8 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 
 1. WHEN an Expense Document is created with `inactive` not set to `true`, THE API SHALL add a PeriodExpenseEntry subdocument (with `status: "Unpaid"`) to every active Period whose date range contains the expense's `dayOfMonth`.
 2. WHEN an Expense Document is updated and `inactive` changes from `true` to `false`, THE API SHALL add a PeriodExpenseEntry subdocument (with `status: "Unpaid"`) to every active Period whose date range contains the expense's `dayOfMonth`.
-3. WHEN an Income Document is created with `inactive` not set to `true`, THE API SHALL add a PeriodIncomeEntry subdocument (with `status: "Pending"`) to every active Period whose date range contains the income's `dayOfMonth`.
-4. WHEN an Income Document is updated and `inactive` changes from `true` to `false`, THE API SHALL add a PeriodIncomeEntry subdocument (with `status: "Pending"`) to every active Period whose date range contains the income's `dayOfMonth`.
+3. WHEN an Income Document is created with `inactive` not set to `true`, THE API SHALL add a PeriodIncomeEntry subdocument (with `isReceived: false`) to every active Period whose date range contains the income's `dayOfMonth`.
+4. WHEN an Income Document is updated and `inactive` changes from `true` to `false`, THE API SHALL add a PeriodIncomeEntry subdocument (with `isReceived: false`) to every active Period whose date range contains the income's `dayOfMonth`.
 5. AN active Period is defined as a Period whose `endDate` is greater than or equal to today's date (UTC).
 6. A `dayOfMonth` value is considered to fall within a period if, in any calendar month that overlaps the period, the clamped day (min of `dayOfMonth` and last day of that month) falls on or between `startDate` and `endDate`.
 7. IF the expense or income is already present in a period's subdocument array, THE API SHALL NOT add a duplicate entry.
@@ -446,9 +445,10 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
      - `expense` — required MongoDB ObjectId referencing an Expense Document
      - `status` — required PeriodExpenseStatus enum value (`"Unpaid"`, `"Paid"`, or `"Deferred"`)
      - `overrideAmount` — optional positive number representing the actual payment amount in USD
+     - `isCarryOver` — optional boolean indicating whether this entry was deferred from a previous period; defaults to `false`
    - `incomes` — array of PeriodIncomeEntry subdocuments (default empty), each containing:
      - `income` — required MongoDB ObjectId referencing an Income Document
-     - `status` — required PeriodIncomeStatus enum value (`"Pending"` or `"Received"`)
+     - `isReceived` — required boolean indicating whether the income has been received; defaults to `false`
      - `overrideAmount` — optional positive number representing the actual received amount in USD
 2. THE Validator SHALL define a Zod schema for Period creation and update requiring `startDate` and `endDate` as valid ISO 8601 date strings; the schema SHALL enforce that `endDate` is strictly after `startDate`; the schema SHALL strip or reject `_id`, `createdAt`, and `updatedAt` if present in the request body.
 3. THE Validator SHALL validate `startDate` and `endDate` as non-empty strings that represent valid calendar dates in ISO 8601 format (`YYYY-MM-DD`).
@@ -474,7 +474,7 @@ This feature defines a RESTful API built with Node.js, Express, and MongoDB. The
 9. WHEN generating periods, THE Service SHALL determine each period's `startDate` using the `dayOfMonth` values of active paycheck Income Documents (where `isPaycheck` is `true` and `inactive` is not `true`), anchoring from the `endDate` of the most recently existing Period (or yesterday if no periods exist).
 10. WHEN generating periods, THE Service SHALL set each period's `endDate` to the day before the next period's `startDate`.
 11. WHEN generating periods, THE Service SHALL populate the `expenses` array with PeriodExpenseEntry subdocuments for all active Expense Documents (where `inactive` is not `true`) whose `dayOfMonth` falls within the period's date range, each with `status` defaulting to `"Unpaid"`.
-12. WHEN generating periods, THE Service SHALL populate the `incomes` array with PeriodIncomeEntry subdocuments for all active Income Documents (where `inactive` is not `true`) whose `dayOfMonth` falls within the period's date range, each with `status` defaulting to `"Pending"`.
+12. WHEN generating periods, THE Service SHALL populate the `incomes` array with PeriodIncomeEntry subdocuments for all active Income Documents (where `inactive` is not `true`) whose `dayOfMonth` falls within the period's date range, each with `isReceived` defaulting to `false`.
 13. IF `POST /api/periods/generate/:count` is called with a `count` outside the range [1, 12], THEN THE Controller SHALL return HTTP status `400`.
 14. IF `POST /api/periods/generate/:count` is called and no active paycheck Income Documents exist, THEN THE Service SHALL return HTTP status `422` with a descriptive error message.
 

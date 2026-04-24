@@ -188,7 +188,7 @@ describe("addIncomeToActivePeriods — dayFallsInPeriod", () => {
   it("does NOT add a duplicate if income is already present", async () => {
     const incId = fakeId();
     const period = await createPeriod("2026-05-01", "2026-05-31");
-    await Period.updateOne({ _id: period._id }, { $push: { incomes: { income: incId, status: "Pending" } } });
+    await Period.updateOne({ _id: period._id }, { $push: { incomes: { income: incId, isReceived: false } } });
 
     await addIncomeToActivePeriods(incId, 15);
 
@@ -207,7 +207,7 @@ describe("addIncomeToActivePeriods — dayFallsInPeriod", () => {
     expect(updated!.incomes.some((e) => String(e.income) === incId)).toBe(false);
   });
 
-  it("adds income with status Pending", async () => {
+  it("adds income with isReceived false", async () => {
     const incId = fakeId();
     const period = await createPeriod("2026-05-01", "2026-05-31");
 
@@ -215,6 +215,6 @@ describe("addIncomeToActivePeriods — dayFallsInPeriod", () => {
 
     const updated = await Period.findById(period._id);
     const entry = updated!.incomes.find((e) => String(e.income) === incId);
-    expect(entry?.status).toBe("Pending");
+    expect(entry?.isReceived).toBe(false);
   });
 });

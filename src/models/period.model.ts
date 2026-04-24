@@ -1,11 +1,10 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
-export type PeriodIncomeStatus = "Pending" | "Received";
 export type PeriodExpenseStatus = "Unpaid" | "Paid" | "Deferred";
 
 export interface IPeriodIncomeEntry {
   income: Types.ObjectId;
-  status: PeriodIncomeStatus;
+  isReceived: boolean;
   overrideAmount?: number;
 }
 
@@ -13,6 +12,7 @@ export interface IPeriodExpenseEntry {
   expense: Types.ObjectId;
   status: PeriodExpenseStatus;
   overrideAmount?: number;
+  isCarryOver?: boolean;
 }
 
 export interface IPeriod extends Document {
@@ -25,7 +25,7 @@ export interface IPeriod extends Document {
 const periodIncomeEntrySchema = new Schema<IPeriodIncomeEntry>(
   {
     income: { type: Schema.Types.ObjectId, ref: "Income", required: true },
-    status: { type: String, required: true, enum: ["Pending", "Received"] },
+    isReceived: { type: Boolean, required: true, default: false },
     overrideAmount: { type: Number },
   },
   { _id: false }
@@ -36,6 +36,7 @@ const periodExpenseEntrySchema = new Schema<IPeriodExpenseEntry>(
     expense: { type: Schema.Types.ObjectId, ref: "Expense", required: true },
     status: { type: String, required: true, enum: ["Unpaid", "Paid", "Deferred"] },
     overrideAmount: { type: Number },
+    isCarryOver: { type: Boolean, default: false },
   },
   { _id: false }
 );
