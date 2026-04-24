@@ -12,3 +12,11 @@ export async function findByEmail(email: string): Promise<IUser | null> {
 export async function create(data: RegisterInput): Promise<IUser> {
   return User.create(data);
 }
+
+export async function update(id: string, data: Partial<Omit<IUser, "password">>): Promise<Omit<IUser, "password"> | null> {
+  return User.findByIdAndUpdate(id, data, { new: true }).select("-password") as unknown as Omit<IUser, "password"> | null;
+}
+
+export async function remove(id: string): Promise<void> {
+  await User.findByIdAndDelete(id);
+}
